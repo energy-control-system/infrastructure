@@ -1,0 +1,38 @@
+name: Docker Compose Build & Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get short SHA
+        id: vars
+        run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Ensure network backend has been created
+        run: |
+          if ! docker network ls --format '{{.Name}}' | grep -q '^backend$'; then
+            docker network create -d bridge backend
+          fi
+
+      - name: Stop and remove previous containers
+        run: |
+          docker compose -f docker-compose.prod.yml down || true
+
+      - name: Build and run containers with docker-compose
+        env:
+          MINIO_USER: ${{ secrets.MINIO_USER }}
+          MINIO_PASSWORD: ${{ secrets.MINIO_PASSWORD }}
+          POSTGRES_CONNECTION_URI: ${{ secrets.POSTGRES_CONNECTION_URI }}
+        run: |
+          docker compose -f docker-compose.prod.yml up -d --build
+
+      - name: Cleanup old dangling images
+        run: docker image prune -f

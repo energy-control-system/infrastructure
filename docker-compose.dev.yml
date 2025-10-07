@@ -1,0 +1,85 @@
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: GvcLkrWP9x8ey2xI9F
+      PGDATA: /var/lib/postgresql/18/docker
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    container_name: minio
+    command: server --console-address ":9001" /data/
+    environment:
+      MINIO_ROOT_USER: root
+      MINIO_ROOT_PASSWORD: lABEgpTa8piMO4wSM91B
+      MINIO_BROWSER_REDIRECT_URL: http://localhost/minio/
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  nginx:
+    image: nginx:1.29
+    restart: unless-stopped
+    tty: true
+    container_name: nginx
+    volumes:
+      - ./nginx.dev.conf:/etc/nginx/nginx.conf
+    ports:
+      - "80:80"
+      - "443:443"
+    healthcheck:
+      test: service nginx status || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  file-service:
+    image: file-service:latest
+    restart: unless-stopped
+    container_name: file-service
+    build:
+      context: ../file-service
+      dockerfile: Dockerfile
+    environment:
+      ENV: dev
+      MINIO_USER: root
+      MINIO_PASSWORD: lABEgpTa8piMO4wSM91B
+      POSTGRES_CONNECTION_URI: postgres://postgres:GvcLkrWP9x8ey2xI9F@postgres:5432/file_service?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:
