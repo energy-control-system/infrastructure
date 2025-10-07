@@ -76,6 +76,16 @@ services:
     networks:
       - backend
 
+  analyzer-service:
+    image: analyzer-service:latest
+    restart: unless-stopped
+    container_name: analyzer-service
+    build:
+      context: ../analyzer-service
+      dockerfile: Dockerfile
+    networks:
+      - backend
+
 networks:
   backend:
     driver: bridge
