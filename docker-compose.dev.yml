@@ -123,7 +123,7 @@ services:
       ENV: dev
       MINIO_USER: root
       MINIO_PASSWORD: lABEgpTa8piMO4wSM91B
-      POSTGRES_CONNECTION_URI: postgres://postgres:GvcLkrWP9x8ey2xI9F@postgres:5432/file_service?sslmode=disable
+      POSTGRES_PASSWORD: GvcLkrWP9x8ey2xI9F
     depends_on:
       postgres:
         condition: service_healthy
@@ -151,7 +151,7 @@ services:
       dockerfile: Dockerfile
     environment:
       ENV: dev
-      POSTGRES_CONNECTION_URI: postgres://postgres:GvcLkrWP9x8ey2xI9F@postgres:5432/task_service?sslmode=disable
+      POSTGRES_PASSWORD: GvcLkrWP9x8ey2xI9F
     depends_on:
       postgres:
         condition: service_healthy

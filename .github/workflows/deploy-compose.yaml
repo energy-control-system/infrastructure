@@ -30,7 +30,7 @@ jobs:
         env:
           MINIO_USER: ${{ secrets.MINIO_USER }}
           MINIO_PASSWORD: ${{ secrets.MINIO_PASSWORD }}
-          POSTGRES_CONNECTION_URI: ${{ secrets.POSTGRES_CONNECTION_URI }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
           docker compose -f docker-compose.prod.yml up -d --build
 
