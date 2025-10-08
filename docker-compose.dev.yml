@@ -86,6 +86,22 @@ services:
     networks:
       - backend
 
+  task-service:
+    image: task-service:latest
+    restart: unless-stopped
+    container_name: task-service
+    build:
+      context: ../task-service
+      dockerfile: Dockerfile
+    environment:
+      ENV: dev
+      POSTGRES_CONNECTION_URI: postgres://postgres:GvcLkrWP9x8ey2xI9F@postgres:5432/task_service?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
 networks:
   backend:
     driver: bridge
