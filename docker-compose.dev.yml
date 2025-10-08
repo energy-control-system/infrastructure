@@ -38,6 +38,57 @@ services:
     networks:
       - backend
 
+  kafka:
+    image: apache/kafka:4.1.0
+    restart: unless-stopped
+    container_name: kafka
+    environment:
+      # Configure listeners for both docker and host communication
+      KAFKA_LISTENERS: CONTROLLER://localhost:9091,HOST://0.0.0.0:9092,DOCKER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: HOST://localhost:9092,DOCKER://kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,DOCKER:PLAINTEXT,HOST:PLAINTEXT
+
+      # Settings required for KRaft mode
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9091
+
+      # Listener to use for broker-to-broker communication
+      KAFKA_INTER_BROKER_LISTENER_NAME: DOCKER
+
+      # Required for a single node cluster
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: nc -z localhost 9092 || exit -1
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    restart: unless-stopped
+    container_name: kafka-ui
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
+      SERVER.PORT: 8070
+      SERVER_SERVLET_CONTEXT_PATH: /kafka
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: nc -z localhost 8070 || exit -1
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
   nginx:
     image: nginx:1.29
     restart: unless-stopped
@@ -53,6 +104,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    depends_on:
+      minio:
+        condition: service_healthy
+      kafka-ui:
+        condition: service_healthy
     networks:
       - backend
 
@@ -99,6 +155,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
     networks:
       - backend
 
@@ -109,3 +167,4 @@ networks:
 volumes:
   postgres_data:
   minio_data:
+  kafka_data:
