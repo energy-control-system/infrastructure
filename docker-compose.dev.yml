@@ -74,7 +74,7 @@ services:
     restart: unless-stopped
     container_name: kafka-ui
     environment:
-      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_NAME: dev
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
       SERVER.PORT: 8070
       SERVER_SERVLET_CONTEXT_PATH: /kafka
