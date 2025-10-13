@@ -154,6 +154,23 @@ services:
     networks:
       - backend
 
+  inspection-service:
+    image: inspection-service:latest
+    container_name: inspection-service
+    build:
+      context: ../inspection-service
+      dockerfile: Dockerfile
+    environment:
+      ENV: dev
+      POSTGRES_PASSWORD: GvcLkrWP9x8ey2xI9F
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - backend
+
 networks:
   backend:
     driver: bridge
