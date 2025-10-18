@@ -26,6 +26,8 @@ services:
       MINIO_ROOT_USER: root
       MINIO_ROOT_PASSWORD: lABEgpTa8piMO4wSM91B
       MINIO_BROWSER_REDIRECT_URL: http://localhost/minio/
+    ports:
+      - "9000:9000"
     volumes:
       - minio_data:/data
     healthcheck:
