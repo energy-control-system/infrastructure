@@ -58,6 +58,8 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
       KAFKA_LOG_DIRS: /var/lib/kafka/data
+    ports:
+      - "9092:9092"
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
