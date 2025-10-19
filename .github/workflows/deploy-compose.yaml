@@ -31,6 +31,8 @@ jobs:
           MINIO_USER: ${{ secrets.MINIO_USER }}
           MINIO_PASSWORD: ${{ secrets.MINIO_PASSWORD }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          CLICKHOUSE_USER: ${{ secrets.CLICKHOUSE_USER }}
+          CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
         run: |
           docker compose -f docker-compose.prod.yml up -d --build
 
