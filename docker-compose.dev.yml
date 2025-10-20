@@ -207,9 +207,12 @@ services:
       dockerfile: Dockerfile
     environment:
       ENV: dev
+      POSTGRES_PASSWORD: GvcLkrWP9x8ey2xI9F
       CLICKHOUSE_USER: root
       CLICKHOUSE_PASSWORD: s4c1A2bgbqK2FJuR20R7
     depends_on:
+      postgres:
+        condition: service_healthy
       clickhouse:
         condition: service_healthy
       kafka:
