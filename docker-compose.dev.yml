@@ -237,6 +237,23 @@ services:
     networks:
       - backend
 
+  subscriber-service:
+    image: subscriber-service:latest
+    container_name: subscriber-service
+    build:
+      context: ../subscriber-service
+      dockerfile: Dockerfile
+    environment:
+      ENV: dev
+      POSTGRES_PASSWORD: GvcLkrWP9x8ey2xI9F
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - backend
+
 networks:
   backend:
     driver: bridge
