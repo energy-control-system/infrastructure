@@ -111,6 +111,39 @@ services:
     networks:
       - backend
 
+  prometheus:
+    image: prom/prometheus:v3.7.2
+    container_name: prometheus
+    depends_on:
+      file-service:
+        condition: service_started
+      task-service:
+        condition: service_started
+      inspection-service:
+        condition: service_started
+      analytics-service:
+        condition: service_started
+      brigade-service:
+        condition: service_started
+      subscriber-service:
+        condition: service_started
+    volumes:
+      - prometheus_data:/prometheus
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - backend
+
+  grafana:
+    image: grafana/grafana-enterprise:12.2
+    container_name: grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana.prod.ini:/etc/grafana/grafana.ini
+    depends_on:
+      - prometheus
+    networks:
+      - backend
+
 networks:
   backend:
     external: true
@@ -120,3 +153,5 @@ volumes:
   minio_data:
   kafka_data:
   clickhouse_data:
+  prometheus_data:
+  grafana_data:

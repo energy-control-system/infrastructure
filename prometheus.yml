@@ -1,0 +1,27 @@
+global:
+  scrape_interval: 30s
+
+scrape_configs:
+  - job_name: file-service
+    static_configs:
+      - targets: [ "file-service:80" ]
+
+  - job_name: task-service
+    static_configs:
+      - targets: [ "task-service:80" ]
+
+  - job_name: inspection-service
+    static_configs:
+      - targets: [ "inspection-service:80" ]
+
+  - job_name: analytics-service
+    static_configs:
+      - targets: [ "analytics-service:80" ]
+
+  - job_name: brigade-service
+    static_configs:
+      - targets: [ "brigade-service:80" ]
+
+  - job_name: subscriber-service
+    static_configs:
+      - targets: [ "subscriber-service:80" ]
