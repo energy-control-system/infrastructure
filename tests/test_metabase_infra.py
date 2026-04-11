@@ -43,16 +43,16 @@ class MetabaseInfraContractTests(unittest.TestCase):
         self.assertIn("upstream metabase", text)
         self.assertIn("location = /metabase", text)
         self.assertIn("return 301 /metabase/;", text)
-        self.assertIn("location /metabase", text)
-        self.assertIn("proxy_pass http://metabase;", text)
+        self.assertIn("location /metabase/", text)
+        self.assertIn("proxy_pass http://metabase/;", text)
 
     def test_prod_nginx_file_exists_and_exposes_metabase(self) -> None:
         text = PROD_NGINX.read_text(encoding="utf-8")
         self.assertIn("upstream metabase", text)
         self.assertIn("location = /metabase", text)
         self.assertIn("return 301 /metabase/;", text)
-        self.assertIn("location /metabase", text)
-        self.assertIn("proxy_pass http://metabase;", text)
+        self.assertIn("location /metabase/", text)
+        self.assertIn("proxy_pass http://metabase/;", text)
 
     def test_metabase_init_build_context_exists(self) -> None:
         self.assertTrue(METABASE_INIT_DIR.is_dir())
