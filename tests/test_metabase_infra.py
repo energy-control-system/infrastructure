@@ -7,6 +7,9 @@ DEV_COMPOSE = ROOT / "docker-compose.dev.yml"
 PROD_COMPOSE = ROOT / "docker-compose.prod.yml"
 DEV_NGINX = ROOT / "nginx.dev.conf"
 PROD_NGINX = ROOT / "nginx.prod.conf"
+METABASE_INIT_DIR = ROOT / "metabase-init"
+METABASE_INIT_DOCKERFILE = METABASE_INIT_DIR / "Dockerfile"
+METABASE_INIT_BOOTSTRAP = METABASE_INIT_DIR / "bootstrap.py"
 
 
 class MetabaseInfraContractTests(unittest.TestCase):
@@ -47,6 +50,11 @@ class MetabaseInfraContractTests(unittest.TestCase):
         self.assertIn("upstream metabase", text)
         self.assertIn("location /metabase", text)
         self.assertIn("proxy_pass http://metabase;", text)
+
+    def test_metabase_init_build_context_exists(self) -> None:
+        self.assertTrue(METABASE_INIT_DIR.is_dir())
+        self.assertTrue(METABASE_INIT_DOCKERFILE.is_file())
+        self.assertTrue(METABASE_INIT_BOOTSTRAP.is_file())
 
 
 if __name__ == "__main__":
