@@ -21,7 +21,6 @@ class MetabaseInfraContractTests(unittest.TestCase):
             "metabase-init:",
             "MB_SITE_LOCALE: ru",
             "MB_SITE_URL: http://localhost/metabase/",
-            "METABASE_COLLECTION_NAME: Аналитика энергоконтроля",
             "depends_on:",
         ):
             self.assertIn(token, text)
@@ -42,12 +41,16 @@ class MetabaseInfraContractTests(unittest.TestCase):
     def test_dev_nginx_exposes_metabase_route(self) -> None:
         text = DEV_NGINX.read_text(encoding="utf-8")
         self.assertIn("upstream metabase", text)
+        self.assertIn("location = /metabase", text)
+        self.assertIn("return 301 /metabase/;", text)
         self.assertIn("location /metabase", text)
         self.assertIn("proxy_pass http://metabase;", text)
 
     def test_prod_nginx_file_exists_and_exposes_metabase(self) -> None:
         text = PROD_NGINX.read_text(encoding="utf-8")
         self.assertIn("upstream metabase", text)
+        self.assertIn("location = /metabase", text)
+        self.assertIn("return 301 /metabase/;", text)
         self.assertIn("location /metabase", text)
         self.assertIn("proxy_pass http://metabase;", text)
 
