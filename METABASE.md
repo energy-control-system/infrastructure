@@ -5,6 +5,7 @@
 ## Что добавлено
 
 - `metabase` с хранением application DB в PostgreSQL.
+- `clickhouse-db-init`, который создаёт БД `analytics_service` через `clickhouse-client --port 9123` до старта `analytics-service` и bootstrap Metabase.
 - `metabase-init`, который через API делает bootstrap, подключает ClickHouse и создаёт русскую коллекцию `Аналитика энергоконтроля`.
 - Два русских дашборда: `Обзор операций` и `Абоненты и объекты`.
 - BI-витрины в ClickHouse, которые читают Metabase-вопросы.
@@ -18,7 +19,8 @@
    ```
 2. Откройте Metabase:
    - `http://localhost/metabase/`
-3. Если нужен быстрый старт после чистого стенда, дождитесь завершения `metabase-init`.
+3. Если нужен быстрый старт после чистого стенда, дождитесь завершения `clickhouse-db-init`, затем `metabase-init`.
+4. В dev по умолчанию используется валидный адрес bootstrap-пользователя: `admin@example.com`.
 
 ## Что должно быть в Metabase
 
@@ -39,10 +41,11 @@
 - `METABASE_COLLECTION_NAME`
 - `METABASE_CLICKHOUSE_NAME`
 - `METABASE_CLICKHOUSE_HOST`
-- `METABASE_CLICKHOUSE_PORT`
 - `METABASE_CLICKHOUSE_DB`
 - `METABASE_CLICKHOUSE_USER`
 - `METABASE_CLICKHOUSE_PASSWORD`
+
+Порт ClickHouse для Metabase зафиксирован на `9123` инфраструктурой, чтобы совпадать с `clickhouse.config.xml`.
 
 ## Быстрая проверка
 
@@ -57,7 +60,7 @@
 - Проверка BI views в ClickHouse:
   ```bash
   docker compose -f infrastructure/docker-compose.dev.yml exec clickhouse \
-    clickhouse-client -u root --password 's4c1A2bgbqK2FJuR20R7' \
+    clickhouse-client --port 9123 -u root --password 's4c1A2bgbqK2FJuR20R7' \
     -d analytics_service --query "SHOW TABLES LIKE 'v_bi_%'"
   ```
 

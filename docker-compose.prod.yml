@@ -111,6 +111,24 @@ services:
     networks:
       - backend
 
+  clickhouse-db-init:
+    image: clickhouse/clickhouse-server:25.3
+    container_name: clickhouse-db-init
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:?CLICKHOUSE_USER is required}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD is required}
+      CLICKHOUSE_DB: analytics_service
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    command: >
+      sh -ec "
+      until clickhouse-client --host clickhouse --port 9123 -u \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1' >/dev/null 2>&1; do sleep 2; done &&
+      clickhouse-client --host clickhouse --port 9123 -u \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" --query \"CREATE DATABASE IF NOT EXISTS $$CLICKHOUSE_DB\"
+      "
+    networks:
+      - backend
+
   metabase-db-init:
     image: postgres:18
     container_name: metabase-db-init
@@ -130,7 +148,7 @@ services:
       - backend
 
   metabase:
-    image: metabase/metabase:v0.59.10
+    image: metabase/metabase:v0.59.x
     container_name: metabase
     environment:
       MB_DB_TYPE: postgres
@@ -168,15 +186,15 @@ services:
       METABASE_COLLECTION_NAME: ${METABASE_COLLECTION_NAME:?METABASE_COLLECTION_NAME is required}
       METABASE_CLICKHOUSE_NAME: ${METABASE_CLICKHOUSE_NAME:?METABASE_CLICKHOUSE_NAME is required}
       METABASE_CLICKHOUSE_HOST: ${METABASE_CLICKHOUSE_HOST:?METABASE_CLICKHOUSE_HOST is required}
-      METABASE_CLICKHOUSE_PORT: ${METABASE_CLICKHOUSE_PORT:?METABASE_CLICKHOUSE_PORT is required}
+      METABASE_CLICKHOUSE_PORT: 9123
       METABASE_CLICKHOUSE_DB: ${METABASE_CLICKHOUSE_DB:?METABASE_CLICKHOUSE_DB is required}
       METABASE_CLICKHOUSE_USER: ${METABASE_CLICKHOUSE_USER:?METABASE_CLICKHOUSE_USER is required}
       METABASE_CLICKHOUSE_PASSWORD: ${METABASE_CLICKHOUSE_PASSWORD:?METABASE_CLICKHOUSE_PASSWORD is required}
     depends_on:
       metabase:
         condition: service_healthy
-      clickhouse:
-        condition: service_healthy
+      clickhouse-db-init:
+        condition: service_completed_successfully
     networks:
       - backend
 

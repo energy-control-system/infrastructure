@@ -123,7 +123,7 @@ class MetabaseClient:
             "user": {
                 "first_name": env("METABASE_ADMIN_FIRST_NAME", "Демо"),
                 "last_name": env("METABASE_ADMIN_LAST_NAME", "Администратор"),
-                "email": env("METABASE_ADMIN_EMAIL", "admin@localhost"),
+                "email": env("METABASE_ADMIN_EMAIL", "admin@example.com"),
                 "password": env("METABASE_ADMIN_PASSWORD", "MetabaseAdmin123"),
             },
             "database": None,
@@ -132,7 +132,7 @@ class MetabaseClient:
 
     def login(self) -> None:
         payload = {
-            "username": env("METABASE_ADMIN_EMAIL", "admin@localhost"),
+            "username": env("METABASE_ADMIN_EMAIL", "admin@example.com"),
             "password": env("METABASE_ADMIN_PASSWORD", "MetabaseAdmin123"),
         }
         session = self.request("POST", "/api/session", payload)
@@ -184,7 +184,7 @@ def build_database_payload() -> dict:
         "name": env("METABASE_CLICKHOUSE_NAME", "Analytics BI"),
         "details": {
             "host": env("METABASE_CLICKHOUSE_HOST", "clickhouse"),
-            "port": int(env("METABASE_CLICKHOUSE_PORT", "8123")),
+            "port": int(env("METABASE_CLICKHOUSE_PORT", "9123")),
             "dbname": env("METABASE_CLICKHOUSE_DB", "analytics_service"),
             "user": env("METABASE_CLICKHOUSE_USER", "root"),
             "password": env("METABASE_CLICKHOUSE_PASSWORD", "s4c1A2bgbqK2FJuR20R7"),
@@ -588,6 +588,7 @@ def upsert_cards(client, collection_id: int, database_id: int):
             "display": spec["display"],
             "dataset_query": spec["dataset_query"],
             "collection_id": collection_id,
+            "visualization_settings": {},
         }
         existing = find_collection_card(items, spec["name"])
         if existing is None:

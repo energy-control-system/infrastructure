@@ -115,6 +115,24 @@ services:
     networks:
       - backend
 
+  clickhouse-db-init:
+    image: clickhouse/clickhouse-server:25.3
+    container_name: clickhouse-db-init
+    environment:
+      CLICKHOUSE_USER: root
+      CLICKHOUSE_PASSWORD: s4c1A2bgbqK2FJuR20R7
+      CLICKHOUSE_DB: analytics_service
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    command: >
+      sh -ec "
+      until clickhouse-client --host clickhouse --port 9123 -u \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1' >/dev/null 2>&1; do sleep 2; done &&
+      clickhouse-client --host clickhouse --port 9123 -u \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" --query \"CREATE DATABASE IF NOT EXISTS $$CLICKHOUSE_DB\"
+      "
+    networks:
+      - backend
+
   metabase-db-init:
     image: postgres:18
     container_name: metabase-db-init
@@ -134,7 +152,7 @@ services:
       - backend
 
   metabase:
-    image: metabase/metabase:v0.59.10
+    image: metabase/metabase:v0.59.x
     container_name: metabase
     environment:
       MB_DB_TYPE: postgres
@@ -165,22 +183,22 @@ services:
       dockerfile: Dockerfile
     environment:
       METABASE_URL: http://metabase:3000
-      METABASE_ADMIN_EMAIL: admin@localhost
+      METABASE_ADMIN_EMAIL: admin@example.com
       METABASE_ADMIN_PASSWORD: MetabaseAdmin123
       METABASE_ADMIN_FIRST_NAME: Демо
       METABASE_ADMIN_LAST_NAME: Администратор
       METABASE_COLLECTION_NAME: Аналитика энергоконтроля
       METABASE_CLICKHOUSE_NAME: Analytics BI
       METABASE_CLICKHOUSE_HOST: clickhouse
-      METABASE_CLICKHOUSE_PORT: 8123
+      METABASE_CLICKHOUSE_PORT: 9123
       METABASE_CLICKHOUSE_DB: analytics_service
       METABASE_CLICKHOUSE_USER: root
       METABASE_CLICKHOUSE_PASSWORD: s4c1A2bgbqK2FJuR20R7
     depends_on:
       metabase:
         condition: service_healthy
-      clickhouse:
-        condition: service_healthy
+      clickhouse-db-init:
+        condition: service_completed_successfully
     networks:
       - backend
 
@@ -317,8 +335,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      clickhouse:
-        condition: service_healthy
+      clickhouse-db-init:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
     networks:

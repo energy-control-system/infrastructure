@@ -16,14 +16,18 @@ class MetabaseInfraContractTests(unittest.TestCase):
     def test_dev_compose_contains_metabase_stack(self) -> None:
         text = DEV_COMPOSE.read_text(encoding="utf-8")
         for token in (
+            "clickhouse-db-init:",
             "metabase-db-init:",
             "metabase:",
             "metabase-init:",
             "MB_SITE_LOCALE: ru",
             "MB_SITE_URL: http://localhost/metabase/",
             "METABASE_URL: http://metabase:3000",
-            "METABASE_ADMIN_EMAIL: admin@localhost",
+            "METABASE_ADMIN_EMAIL: admin@example.com",
             "METABASE_CLICKHOUSE_DB: analytics_service",
+            "METABASE_CLICKHOUSE_PORT: 9123",
+            "--port 9123",
+            "condition: service_completed_successfully",
             "depends_on:",
         ):
             self.assertIn(token, text)
@@ -32,6 +36,7 @@ class MetabaseInfraContractTests(unittest.TestCase):
         text = PROD_COMPOSE.read_text(encoding="utf-8")
         for token in (
             "nginx:",
+            "clickhouse-db-init:",
             "metabase-db-init:",
             "metabase:",
             "metabase-init:",
@@ -40,6 +45,8 @@ class MetabaseInfraContractTests(unittest.TestCase):
             "METABASE_URL: ${METABASE_URL:?METABASE_URL is required}",
             "METABASE_ADMIN_EMAIL: ${METABASE_ADMIN_EMAIL:?METABASE_ADMIN_EMAIL is required}",
             "METABASE_CLICKHOUSE_PASSWORD: ${METABASE_CLICKHOUSE_PASSWORD:?METABASE_CLICKHOUSE_PASSWORD is required}",
+            "METABASE_CLICKHOUSE_PORT: 9123",
+            "--port 9123",
             "./nginx.prod.conf:/etc/nginx/nginx.conf",
         ):
             self.assertIn(token, text)

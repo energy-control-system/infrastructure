@@ -1,4 +1,6 @@
+import os
 import unittest
+from unittest.mock import patch
 
 import bootstrap
 
@@ -75,6 +77,27 @@ class RecordingClient:
         self.calls.append(("replace_dashboard_cards", dashboard_id, payload["cards"]))
 
 
+class SetupRecordingClient(bootstrap.MetabaseClient):
+    def __init__(self) -> None:
+        super().__init__("http://metabase.example")
+        self.calls = []
+
+    def request(self, method: str, path: str, payload=None):
+        self.calls.append((method, path, payload))
+        if method == "GET" and path == "/api/session/properties":
+            return {"setup-token": "token"}
+        if method == "POST" and path == "/api/setup":
+            return {"ok": True}
+        raise AssertionError(f"unexpected request: {method} {path}")
+
+
+class CreateCardPayloadClient(RecordingClient):
+    def create_card(self, payload):
+        self.calls.append(("create_card", payload))
+        self._card_id += 1
+        return {"id": self._card_id}
+
+
 class DashboardScopeClient(RecordingClient):
     def list_dashboards(self):
         self.calls.append(("list_dashboards",))
@@ -104,9 +127,30 @@ class PaginatedScopeClient(RecordingClient):
         return {"data": []}
 
 
+class UpdateCardPayloadClient(PaginatedScopeClient):
+    def update_card(self, card_id, payload):
+        self.calls.append(("update_card", card_id, payload))
+        return {"id": card_id}
+
+
 
 
 class BootstrapSpecTests(unittest.TestCase):
+    def test_setup_uses_valid_default_admin_email(self) -> None:
+        client = SetupRecordingClient()
+
+        with patch.dict(os.environ, {}, clear=True):
+            client.setup()
+
+        setup_call = next(item for item in client.calls if item[0] == "POST" and item[1] == "/api/setup")
+        self.assertEqual(setup_call[2]["user"]["email"], "admin@example.com")
+
+    def test_build_database_payload_defaults_to_clickhouse_native_port(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            payload = bootstrap.build_database_payload()
+
+        self.assertEqual(payload["details"]["port"], 9123)
+
     def test_question_specs_reference_bi_views_and_filters(self) -> None:
         specs = bootstrap.build_question_specs(database_id=42)
         names = [item["name"] for item in specs]
@@ -261,7 +305,7 @@ class BootstrapSpecTests(unittest.TestCase):
         self.assertEqual(len(create_dashboard_calls), 2)
 
     def test_run_bootstrap_handles_paginated_lists_and_card_only_lookup(self) -> None:
-        client = PaginatedScopeClient()
+        client = UpdateCardPayloadClient()
 
         bootstrap.run_bootstrap(client)
 
@@ -269,6 +313,22 @@ class BootstrapSpecTests(unittest.TestCase):
         self.assertTrue(update_card_calls)
         self.assertEqual(update_card_calls[0][1], 777)
         self.assertNotIn(501, [item[1] for item in update_card_calls])
+        self.assertTrue(
+            all(call[2]["visualization_settings"] == {} for call in update_card_calls),
+            msg="update payloads must include empty visualization_settings",
+        )
+
+    def test_run_bootstrap_sets_empty_visualization_settings_on_new_cards(self) -> None:
+        client = CreateCardPayloadClient()
+
+        bootstrap.run_bootstrap(client)
+
+        create_card_calls = [item for item in client.calls if item[0] == "create_card"]
+        self.assertTrue(create_card_calls)
+        self.assertTrue(
+            all(call[1]["visualization_settings"] == {} for call in create_card_calls),
+            msg="create payloads must include empty visualization_settings",
+        )
 
     def test_run_bootstrap_updates_existing_database_and_syncs_it(self) -> None:
         client = RecordingClient()
