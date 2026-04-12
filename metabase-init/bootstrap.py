@@ -468,11 +468,16 @@ order by last_task_day desc, total_tasks_count desc
     ]
 
 
-def dashboard_parameters():
+def dashboard_parameters(dashboard_name: str):
+    if dashboard_name == "Обзор операций":
+        return [
+            {"id": "filter-period", "name": "Период", "slug": "period", "type": "date/single"},
+            {"id": "filter-inspection-type", "name": "Тип проверки", "slug": "inspection_type", "type": "string/="},
+            {"id": "filter-brigade", "name": "Бригада", "slug": "brigade_id", "type": "number/="},
+        ]
     return [
         {"id": "filter-period", "name": "Период", "slug": "period", "type": "date/single"},
         {"id": "filter-inspection-type", "name": "Тип проверки", "slug": "inspection_type", "type": "string/="},
-        {"id": "filter-brigade", "name": "Бригада", "slug": "brigade_id", "type": "number/="},
         {"id": "filter-subscriber-status", "name": "Статус абонента", "slug": "subscriber_status", "type": "string/="},
         {"id": "filter-automaton-state", "name": "Наличие автомата", "slug": "automaton_state", "type": "string/="},
     ]
@@ -523,7 +528,7 @@ def build_dashboard_specs(cards_by_name):
                     if dashboard_name == "Обзор операций"
                     else "Срезы по статусам абонентов, объектам и адресам проверок."
                 ),
-                "parameters": dashboard_parameters(),
+                "parameters": dashboard_parameters(dashboard_name),
                 "cards": cards,
             }
         )

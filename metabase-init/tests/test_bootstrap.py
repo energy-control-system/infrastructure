@@ -190,9 +190,24 @@ class BootstrapSpecTests(unittest.TestCase):
         self.assertTrue(all("size_x" in card and "size_y" in card for card in subscribers["cards"]))
         self.assertEqual(
             [param["name"] for param in overview["parameters"]],
-            ["Период", "Тип проверки", "Бригада", "Статус абонента", "Наличие автомата"],
+            ["Период", "Тип проверки", "Бригада"],
         )
         self.assertEqual(overview["parameters"][0]["type"], "date/single")
+        self.assertEqual(
+            [param["name"] for param in subscribers["parameters"]],
+            ["Период", "Тип проверки", "Статус абонента", "Наличие автомата"],
+        )
+        self.assertEqual(subscribers["parameters"][0]["type"], "date/single")
+        for dashboard_spec in specs:
+            covered = {
+                mapping["parameter_id"]
+                for card in dashboard_spec["cards"]
+                for mapping in card["parameter_mappings"]
+            }
+            self.assertTrue(
+                covered.issuperset({param["id"] for param in dashboard_spec["parameters"]}),
+                msg=f"uncovered dashboard filters in {dashboard_spec['name']}",
+            )
         for card in overview["cards"] + subscribers["cards"]:
             self.assertTrue(card["parameter_mappings"])
             self.assertTrue(all(mapping["target"][0] == "variable" for mapping in card["parameter_mappings"]))
