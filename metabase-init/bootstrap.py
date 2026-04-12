@@ -5,8 +5,48 @@ import urllib.error
 import urllib.request
 
 
+FILTERS = {
+    "period": {"label": "Период", "type": "date", "parameter_id": "filter-period"},
+    "inspection_type": {"label": "Тип проверки", "type": "text", "parameter_id": "filter-inspection-type"},
+    "brigade_id": {"label": "Бригада", "type": "number", "parameter_id": "filter-brigade"},
+    "subscriber_status": {"label": "Статус абонента", "type": "text", "parameter_id": "filter-subscriber-status"},
+    "automaton_state": {"label": "Наличие автомата", "type": "text", "parameter_id": "filter-automaton-state"},
+}
+
+
 def env(name: str, default: str) -> str:
     return os.environ.get(name, default)
+
+
+def filter_template_tag(tag_name: str) -> dict:
+    spec = FILTERS[tag_name]
+    return {
+        "id": tag_name,
+        "name": tag_name,
+        "display-name": spec["label"],
+        "type": spec["type"],
+    }
+
+
+def filter_parameter_mapping(tag_name: str) -> dict:
+    spec = FILTERS[tag_name]
+    return {
+        "parameter_id": spec["parameter_id"],
+        "target": ["variable", ["template-tag", tag_name]],
+    }
+
+
+def build_native_query(sql: str, tag_names=None) -> dict:
+    tag_names = tag_names or []
+    template_tags = {tag_name: filter_template_tag(tag_name) for tag_name in tag_names}
+    native = {"query": sql.strip()}
+    if template_tags:
+        native["template-tags"] = template_tags
+    return native
+
+
+def build_parameter_mappings(tag_names=None) -> list:
+    return [filter_parameter_mapping(tag_name) for tag_name in (tag_names or [])]
 
 
 class MetabaseClient:
@@ -38,7 +78,7 @@ class MetabaseClient:
                 payload = self.request("GET", "/api/health")
                 if payload.get("status") == "ok":
                     return
-            except Exception:
+            except urllib.error.URLError:
                 time.sleep(2)
         raise RuntimeError("metabase did not become healthy in time")
 
@@ -76,22 +116,11 @@ class MetabaseClient:
     def list_databases(self):
         return self.request("GET", "/api/database/")
 
-    def create_database(self):
-        payload = {
-            "engine": "clickhouse",
-            "name": env("METABASE_CLICKHOUSE_NAME", "Analytics BI"),
-            "details": {
-                "host": env("METABASE_CLICKHOUSE_HOST", "clickhouse"),
-                "port": int(env("METABASE_CLICKHOUSE_PORT", "8123")),
-                "dbname": env("METABASE_CLICKHOUSE_DB", "analytics_service"),
-                "user": env("METABASE_CLICKHOUSE_USER", "root"),
-                "password": env("METABASE_CLICKHOUSE_PASSWORD", "s4c1A2bgbqK2FJuR20R7"),
-                "ssl": False,
-                "tunnel-enabled": False,
-            },
-            "is_full_sync": True,
-        }
-        return self.request("POST", "/api/database/", payload)
+    def create_database(self, payload=None):
+        return self.request("POST", "/api/database/", payload or build_database_payload())
+
+    def update_database(self, database_id: int, payload=None):
+        return self.request("PUT", f"/api/database/{database_id}", payload or build_database_payload())
 
     def sync_database(self, database_id: int):
         return self.request("POST", f"/api/database/{database_id}/sync_schema")
@@ -124,12 +153,29 @@ class MetabaseClient:
         return self.request("PUT", f"/api/dashboard/{dashboard_id}/cards", payload)
 
 
+def build_database_payload() -> dict:
+    return {
+        "engine": "clickhouse",
+        "name": env("METABASE_CLICKHOUSE_NAME", "Analytics BI"),
+        "details": {
+            "host": env("METABASE_CLICKHOUSE_HOST", "clickhouse"),
+            "port": int(env("METABASE_CLICKHOUSE_PORT", "8123")),
+            "dbname": env("METABASE_CLICKHOUSE_DB", "analytics_service"),
+            "user": env("METABASE_CLICKHOUSE_USER", "root"),
+            "password": env("METABASE_CLICKHOUSE_PASSWORD", "s4c1A2bgbqK2FJuR20R7"),
+            "ssl": False,
+            "tunnel-enabled": False,
+        },
+        "is_full_sync": True,
+    }
+
+
 def default_collection_name() -> str:
-    return os.environ.get("METABASE_COLLECTION_NAME", "Аналитика энергоконтроля")
+    return env("METABASE_COLLECTION_NAME", "Аналитика энергоконтроля")
 
 
 def find_by_name(items, name):
-    for item in items:
+    for item in items or []:
         if item.get("name") == name:
             return item
     return None
@@ -143,8 +189,17 @@ def build_question_specs(database_id: int):
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
-                "native": {"query": "select sum(tasks_count) as \"Всего завершенных задач\" from v_bi_tasks_daily"},
+                "native": build_native_query(
+                    """
+select sum(tasks_count) as "Всего завершенных задач"
+from v_bi_tasks_daily
+where 1 = 1
+[[and day >= {{period}}]]
+""",
+                    ["period"],
+                ),
             },
+            "parameter_mappings": build_parameter_mappings(["period"]),
         },
         {
             "name": "Нарушения выявлены",
@@ -152,8 +207,17 @@ def build_question_specs(database_id: int):
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
-                "native": {"query": "select sum(violations_detected_count) as \"Нарушения выявлены\" from v_bi_tasks_daily"},
+                "native": build_native_query(
+                    """
+select sum(violations_detected_count) as "Нарушения выявлены"
+from v_bi_tasks_daily
+where 1 = 1
+[[and day >= {{period}}]]
+""",
+                    ["period"],
+                ),
             },
+            "parameter_mappings": build_parameter_mappings(["period"]),
         },
         {
             "name": "Средняя длительность выполнения",
@@ -161,8 +225,17 @@ def build_question_specs(database_id: int):
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
-                "native": {"query": "select round(avg(avg_duration_minutes), 2) as \"Средняя длительность выполнения\" from v_bi_tasks_daily"},
+                "native": build_native_query(
+                    """
+select round(avg(avg_duration_minutes), 2) as "Средняя длительность выполнения"
+from v_bi_tasks_daily
+where 1 = 1
+[[and day >= {{period}}]]
+""",
+                    ["period"],
+                ),
             },
+            "parameter_mappings": build_parameter_mappings(["period"]),
         },
         {
             "name": "Случаи несанкционированного потребления",
@@ -170,8 +243,17 @@ def build_question_specs(database_id: int):
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
-                "native": {"query": "select sum(unauthorized_consumers_count) as \"Случаи несанкционированного потребления\" from v_bi_tasks_daily"},
+                "native": build_native_query(
+                    """
+select sum(unauthorized_consumers_count) as "Случаи несанкционированного потребления"
+from v_bi_tasks_daily
+where 1 = 1
+[[and day >= {{period}}]]
+""",
+                    ["period"],
+                ),
             },
+            "parameter_mappings": build_parameter_mappings(["period"]),
         },
         {
             "name": "Динамика выполненных задач по дням",
@@ -179,17 +261,20 @@ def build_question_specs(database_id: int):
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
-                "native": {
-                    "query": """
+                "native": build_native_query(
+                    """
 select
   day as "Дата",
   tasks_count as "Количество задач"
 from v_bi_tasks_daily
+where 1 = 1
+[[and day >= {{period}}]]
 order by day
-""".strip(),
-                    "template-tags": {},
-                },
+""",
+                    ["period"],
+                ),
             },
+            "parameter_mappings": build_parameter_mappings(["period"]),
         },
         {
             "name": "Распределение по типам проверок",
@@ -197,17 +282,21 @@ order by day
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
-                "native": {
-                    "query": """
+                "native": build_native_query(
+                    """
 select
   inspection_type_ru as "Тип проверки",
   sum(tasks_count) as "Количество"
 from v_bi_inspection_results
+where 1 = 1
+[[and day >= {{period}}]]
 group by inspection_type_ru
 order by "Количество" desc
-""".strip()
-                },
+""",
+                    ["period"],
+                ),
             },
+            "parameter_mappings": build_parameter_mappings(["period"]),
         },
         {
             "name": "Результаты проверок",
@@ -215,10 +304,23 @@ order by "Количество" desc
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
-                "native": {
-                    "query": "select inspection_type_ru as \"Тип проверки\", inspection_result_ru as \"Результат\", sum(tasks_count) as \"Количество\" from v_bi_inspection_results group by inspection_type_ru, inspection_result_ru order by \"Количество\" desc"
-                },
+                "native": build_native_query(
+                    """
+select
+  inspection_type_ru as "Тип проверки",
+  inspection_result_ru as "Результат",
+  sum(tasks_count) as "Количество"
+from v_bi_inspection_results
+where 1 = 1
+[[and day >= {{period}}]]
+[[and inspection_type_ru = {{inspection_type}}]]
+group by inspection_type_ru, inspection_result_ru
+order by "Количество" desc
+""",
+                    ["period", "inspection_type"],
+                ),
             },
+            "parameter_mappings": build_parameter_mappings(["period", "inspection_type"]),
         },
         {
             "name": "Рейтинг бригад по числу выполненных задач",
@@ -226,10 +328,22 @@ order by "Количество" desc
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
-                "native": {
-                    "query": "select brigade_id as \"Бригада\", sum(tasks_count) as \"Количество задач\" from v_bi_brigade_performance group by brigade_id order by \"Количество задач\" desc"
-                },
+                "native": build_native_query(
+                    """
+select
+  brigade_id as "Бригада",
+  sum(tasks_count) as "Количество задач"
+from v_bi_brigade_performance
+where 1 = 1
+[[and day >= {{period}}]]
+[[and brigade_id = {{brigade_id}}]]
+group by brigade_id
+order by "Количество задач" desc
+""",
+                    ["period", "brigade_id"],
+                ),
             },
+            "parameter_mappings": build_parameter_mappings(["period", "brigade_id"]),
         },
         {
             "name": "Распределение абонентов по статусам",
@@ -237,10 +351,22 @@ order by "Количество" desc
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
-                "native": {
-                    "query": "select subscriber_status_ru as \"Статус\", count() as \"Количество\" from v_bi_subscriber_object_profile group by subscriber_status_ru order by \"Количество\" desc"
-                },
+                "native": build_native_query(
+                    """
+select
+  subscriber_status_ru as "Статус",
+  count() as "Количество"
+from v_bi_subscriber_object_profile
+where 1 = 1
+[[and last_task_day >= {{period}}]]
+[[and subscriber_status_ru = {{subscriber_status}}]]
+group by subscriber_status_ru
+order by "Количество" desc
+""",
+                    ["period", "subscriber_status"],
+                ),
             },
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_status"]),
         },
         {
             "name": "Объекты с автоматом и без автомата",
@@ -248,10 +374,21 @@ order by "Количество" desc
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
-                "native": {
-                    "query": "select automaton_state_ru as \"Состояние\", count() as \"Количество\" from v_bi_subscriber_object_profile group by automaton_state_ru"
-                },
+                "native": build_native_query(
+                    """
+select
+  automaton_state_ru as "Состояние",
+  count() as "Количество"
+from v_bi_subscriber_object_profile
+where 1 = 1
+[[and last_task_day >= {{period}}]]
+[[and automaton_state_ru = {{automaton_state}}]]
+group by automaton_state_ru
+""",
+                    ["period", "automaton_state"],
+                ),
             },
+            "parameter_mappings": build_parameter_mappings(["period", "automaton_state"]),
         },
         {
             "name": "Наиболее частые адреса проверок",
@@ -259,10 +396,22 @@ order by "Количество" desc
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
-                "native": {
-                    "query": "select object_address as \"Адрес\", sum(total_tasks_count) as \"Количество проверок\" from v_bi_subscriber_object_profile group by object_address order by \"Количество проверок\" desc limit 20"
-                },
+                "native": build_native_query(
+                    """
+select
+  object_address as "Адрес",
+  sum(total_tasks_count) as "Количество проверок"
+from v_bi_subscriber_object_profile
+where 1 = 1
+[[and last_task_day >= {{period}}]]
+group by object_address
+order by "Количество проверок" desc
+limit 20
+""",
+                    ["period"],
+                ),
             },
+            "parameter_mappings": build_parameter_mappings(["period"]),
         },
         {
             "name": "Статусы абонентов по типам проверок",
@@ -270,22 +419,24 @@ order by "Количество" desc
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
-                "native": {
-                    "query": """
+                "native": build_native_query(
+                    """
 select
-  r.inspection_type_ru as "Тип проверки",
-  p.subscriber_status_ru as "Статус абонента",
+  inspection_type_ru as "Тип проверки",
+  subscriber_status_ru as "Статус абонента",
   count() as "Количество"
-from v_bi_inspection_results r
-cross join (
-  select distinct subscriber_status_ru
-  from v_bi_subscriber_object_profile
-) p
-group by r.inspection_type_ru, p.subscriber_status_ru
+from v_bi_inspection_results
+where 1 = 1
+[[and day >= {{period}}]]
+[[and inspection_type_ru = {{inspection_type}}]]
+[[and subscriber_status_ru = {{subscriber_status}}]]
+group by inspection_type_ru, subscriber_status_ru
 order by 1, 2
-""".strip()
-                },
+""",
+                    ["period", "inspection_type", "subscriber_status"],
+                ),
             },
+            "parameter_mappings": build_parameter_mappings(["period", "inspection_type", "subscriber_status"]),
         },
         {
             "name": "Таблица объектов и абонентов",
@@ -293,10 +444,26 @@ order by 1, 2
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
-                "native": {
-                    "query": "select subscriber_account_number as \"Лицевой счет\", subscriber_status_ru as \"Статус\", object_address as \"Адрес\", automaton_state_ru as \"Автомат\", total_tasks_count as \"Проверок\", violations_detected_count as \"Нарушений\" from v_bi_subscriber_object_profile order by last_task_day desc, total_tasks_count desc"
-                },
+                "native": build_native_query(
+                    """
+select
+  subscriber_account_number as "Лицевой счет",
+  subscriber_status_ru as "Статус",
+  object_address as "Адрес",
+  automaton_state_ru as "Автомат",
+  total_tasks_count as "Проверок",
+  violations_detected_count as "Нарушений"
+from v_bi_subscriber_object_profile
+where 1 = 1
+[[and last_task_day >= {{period}}]]
+[[and subscriber_status_ru = {{subscriber_status}}]]
+[[and automaton_state_ru = {{automaton_state}}]]
+order by last_task_day desc, total_tasks_count desc
+""",
+                    ["period", "subscriber_status", "automaton_state"],
+                ),
             },
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_status", "automaton_state"]),
         },
     ]
 
@@ -311,96 +478,140 @@ def dashboard_parameters():
     ]
 
 
+CARD_LAYOUTS = {
+    "Обзор операций": [
+        ("Всего завершенных задач", 0, 0, 6, 3, ["period"]),
+        ("Нарушения выявлены", 0, 6, 6, 3, ["period"]),
+        ("Средняя длительность выполнения", 0, 12, 6, 3, ["period"]),
+        ("Случаи несанкционированного потребления", 0, 18, 6, 3, ["period"]),
+        ("Динамика выполненных задач по дням", 3, 0, 12, 6, ["period"]),
+        ("Распределение по типам проверок", 3, 12, 12, 6, ["period"]),
+        ("Результаты проверок", 9, 0, 12, 8, ["period", "inspection_type"]),
+        ("Рейтинг бригад по числу выполненных задач", 9, 12, 12, 8, ["period", "brigade_id"]),
+    ],
+    "Абоненты и объекты": [
+        ("Распределение абонентов по статусам", 0, 0, 8, 6, ["period", "subscriber_status"]),
+        ("Объекты с автоматом и без автомата", 0, 8, 8, 6, ["period", "automaton_state"]),
+        ("Наиболее частые адреса проверок", 0, 16, 8, 6, ["period"]),
+        ("Статусы абонентов по типам проверок", 6, 0, 12, 8, ["period", "inspection_type", "subscriber_status"]),
+        ("Таблица объектов и абонентов", 6, 12, 12, 8, ["period", "subscriber_status", "automaton_state"]),
+    ],
+}
+
+
 def build_dashboard_specs(cards_by_name):
-    return [
-        {
-            "name": "Обзор операций",
-            "description": "Ключевые показатели выполнения проверок и эффективности бригад.",
-            "parameters": dashboard_parameters(),
-            "cards": [
-                {"card_name": "Всего завершенных задач", "card_id": cards_by_name["Всего завершенных задач"], "row": 0, "col": 0, "size_x": 6, "size_y": 3, "parameter_mappings": []},
-                {"card_name": "Нарушения выявлены", "card_id": cards_by_name["Нарушения выявлены"], "row": 0, "col": 6, "size_x": 6, "size_y": 3, "parameter_mappings": []},
-                {"card_name": "Средняя длительность выполнения", "card_id": cards_by_name["Средняя длительность выполнения"], "row": 0, "col": 12, "size_x": 6, "size_y": 3, "parameter_mappings": []},
-                {"card_name": "Случаи несанкционированного потребления", "card_id": cards_by_name["Случаи несанкционированного потребления"], "row": 0, "col": 18, "size_x": 6, "size_y": 3, "parameter_mappings": []},
-                {"card_name": "Динамика выполненных задач по дням", "card_id": cards_by_name["Динамика выполненных задач по дням"], "row": 3, "col": 0, "size_x": 12, "size_y": 6, "parameter_mappings": []},
-                {"card_name": "Распределение по типам проверок", "card_id": cards_by_name["Распределение по типам проверок"], "row": 3, "col": 12, "size_x": 12, "size_y": 6, "parameter_mappings": []},
-                {"card_name": "Результаты проверок", "card_id": cards_by_name["Результаты проверок"], "row": 9, "col": 0, "size_x": 12, "size_y": 8, "parameter_mappings": []},
-                {"card_name": "Рейтинг бригад по числу выполненных задач", "card_id": cards_by_name["Рейтинг бригад по числу выполненных задач"], "row": 9, "col": 12, "size_x": 12, "size_y": 8, "parameter_mappings": []},
-            ],
-        },
-        {
-            "name": "Абоненты и объекты",
-            "description": "Срезы по статусам абонентов, объектам и адресам проверок.",
-            "parameters": dashboard_parameters(),
-            "cards": [
-                {"card_name": "Распределение абонентов по статусам", "card_id": cards_by_name["Распределение абонентов по статусам"], "row": 0, "col": 0, "size_x": 8, "size_y": 6, "parameter_mappings": []},
-                {"card_name": "Объекты с автоматом и без автомата", "card_id": cards_by_name["Объекты с автоматом и без автомата"], "row": 0, "col": 8, "size_x": 8, "size_y": 6, "parameter_mappings": []},
-                {"card_name": "Наиболее частые адреса проверок", "card_id": cards_by_name["Наиболее частые адреса проверок"], "row": 0, "col": 16, "size_x": 8, "size_y": 6, "parameter_mappings": []},
-                {"card_name": "Статусы абонентов по типам проверок", "card_id": cards_by_name["Статусы абонентов по типам проверок"], "row": 6, "col": 0, "size_x": 12, "size_y": 8, "parameter_mappings": []},
-                {"card_name": "Таблица объектов и абонентов", "card_id": cards_by_name["Таблица объектов и абонентов"], "row": 6, "col": 12, "size_x": 12, "size_y": 8, "parameter_mappings": []},
-            ],
-        },
-    ]
+    specs = []
+    for dashboard_name, card_defs in CARD_LAYOUTS.items():
+        cards = []
+        for card_name, row, col, size_x, size_y, tag_names in card_defs:
+            cards.append(
+                {
+                    "card_name": card_name,
+                    "card_id": cards_by_name[card_name],
+                    "row": row,
+                    "col": col,
+                    "size_x": size_x,
+                    "size_y": size_y,
+                    "parameter_mappings": build_parameter_mappings(tag_names),
+                }
+            )
+        specs.append(
+            {
+                "name": dashboard_name,
+                "description": (
+                    "Ключевые показатели выполнения проверок и эффективности бригад."
+                    if dashboard_name == "Обзор операций"
+                    else "Срезы по статусам абонентов, объектам и адресам проверок."
+                ),
+                "parameters": dashboard_parameters(),
+                "cards": cards,
+            }
+        )
+    return specs
 
 
-def main() -> None:
-    client = MetabaseClient(env("METABASE_URL", "http://metabase:3000"))
-    client.wait_for_health()
-    if not client.is_setup_complete():
-        client.setup()
-    client.login()
+def upsert_database(client):
+    existing = find_by_name(client.list_databases(), env("METABASE_CLICKHOUSE_NAME", "Analytics BI"))
+    payload = build_database_payload()
+    if existing is None:
+        database = client.create_database(payload)
+    else:
+        database = client.update_database(existing["id"], payload)
+    client.sync_database(database["id"])
+    return database
 
-    database = find_by_name(client.list_databases(), env("METABASE_CLICKHOUSE_NAME", "Analytics BI"))
-    if database is None:
-        database = client.create_database()
-        client.sync_database(database["id"])
 
+def upsert_collection(client):
     collection = find_by_name(client.list_collections(), default_collection_name())
     if collection is None:
-        collection = client.create_collection(default_collection_name())
+        return client.create_collection(default_collection_name())
+    return collection
 
-    items = client.list_collection_items(collection["id"])
+
+def upsert_cards(client, collection_id: int, database_id: int):
+    items = client.list_collection_items(collection_id)
     cards_by_name = {}
-    for spec in build_question_specs(database["id"]):
-        payload = {**spec, "collection_id": collection["id"]}
+    for spec in build_question_specs(database_id):
+        payload = {
+            "name": spec["name"],
+            "display": spec["display"],
+            "dataset_query": spec["dataset_query"],
+            "collection_id": collection_id,
+        }
         existing = find_by_name(items, spec["name"])
         if existing is None:
-            created = client.create_card(payload)
-            cards_by_name[spec["name"]] = created["id"]
+            card = client.create_card(payload)
         else:
-            updated = client.update_card(existing["id"], payload)
-            cards_by_name[spec["name"]] = updated["id"]
+            card = client.update_card(existing["id"], payload)
+        cards_by_name[spec["name"]] = card["id"]
+    return cards_by_name
 
+
+def upsert_dashboards(client, collection_id: int, cards_by_name):
     dashboards = client.list_dashboards()
     for dashboard_spec in build_dashboard_specs(cards_by_name):
         dashboard = find_by_name(dashboards, dashboard_spec["name"])
-        metadata = {
+        payload = {
             "name": dashboard_spec["name"],
             "description": dashboard_spec["description"],
-            "collection_id": collection["id"],
+            "collection_id": collection_id,
             "parameters": dashboard_spec["parameters"],
         }
         if dashboard is None:
-            dashboard = client.create_dashboard(metadata)
+            dashboard = client.create_dashboard(payload)
         else:
-            dashboard = client.update_dashboard(dashboard["id"], metadata)
-
+            dashboard = client.update_dashboard(dashboard["id"], payload)
         client.replace_dashboard_cards(
             dashboard["id"],
             {
                 "cards": [
                     {
-                        "card_id": item["card_id"],
-                        "row": item["row"],
-                        "col": item["col"],
-                        "size_x": item["size_x"],
-                        "size_y": item["size_y"],
-                        "parameter_mappings": item.get("parameter_mappings", []),
+                        "card_id": card["card_id"],
+                        "row": card["row"],
+                        "col": card["col"],
+                        "size_x": card["size_x"],
+                        "size_y": card["size_y"],
+                        "parameter_mappings": card["parameter_mappings"],
                     }
-                    for item in dashboard_spec["cards"]
+                    for card in dashboard_spec["cards"]
                 ]
             },
         )
+
+
+def run_bootstrap(client) -> None:
+    client.wait_for_health()
+    if not client.is_setup_complete():
+        client.setup()
+    client.login()
+    database = upsert_database(client)
+    collection = upsert_collection(client)
+    cards_by_name = upsert_cards(client, collection["id"], database["id"])
+    upsert_dashboards(client, collection["id"], cards_by_name)
+
+
+def main() -> None:
+    run_bootstrap(MetabaseClient(env("METABASE_URL", "http://metabase:3000")))
 
 
 if __name__ == "__main__":
