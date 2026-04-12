@@ -11,7 +11,7 @@ def build_question_specs(database_id: int):
                 "database": database_id,
                 "type": "native",
                 "native": {
-                    "query": "select count(*) as total_completed_tasks from v_bi_tasks_daily",
+                    "query": "select sum(tasks_count) as total_completed_tasks from v_bi_tasks_daily",
                 },
             },
         },
@@ -22,7 +22,7 @@ def build_question_specs(database_id: int):
                 "database": database_id,
                 "type": "native",
                 "native": {
-                    "query": "select day, completed_tasks from v_bi_tasks_daily order by day",
+                    "query": "select day, tasks_count from v_bi_tasks_daily order by day",
                 },
             },
         },
@@ -33,7 +33,7 @@ def build_question_specs(database_id: int):
                 "database": database_id,
                 "type": "native",
                 "native": {
-                    "query": "select status, subscribers from v_bi_subscriber_object_profile order by subscribers desc",
+                    "query": "select subscriber_status_ru, count() as subscribers_count from v_bi_subscriber_object_profile group by subscriber_status_ru order by subscribers_count desc",
                 },
             },
         },
