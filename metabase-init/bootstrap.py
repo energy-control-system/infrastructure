@@ -424,7 +424,7 @@ limit 20
 select
   inspection_type_ru as "Тип проверки",
   subscriber_status_ru as "Статус абонента",
-  count() as "Количество"
+  sum(tasks_count) as "Количество"
 from v_bi_inspection_results
 where 1 = 1
 [[and day >= {{period}}]]
@@ -470,7 +470,7 @@ order by last_task_day desc, total_tasks_count desc
 
 def dashboard_parameters():
     return [
-        {"id": "filter-period", "name": "Период", "slug": "period", "type": "date/all-options"},
+        {"id": "filter-period", "name": "Период", "slug": "period", "type": "date/single"},
         {"id": "filter-inspection-type", "name": "Тип проверки", "slug": "inspection_type", "type": "string/="},
         {"id": "filter-brigade", "name": "Бригада", "slug": "brigade_id", "type": "number/="},
         {"id": "filter-subscriber-status", "name": "Статус абонента", "slug": "subscriber_status", "type": "string/="},

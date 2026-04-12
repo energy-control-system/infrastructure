@@ -129,6 +129,10 @@ class BootstrapSpecTests(unittest.TestCase):
                 {mapping["target"][1][1] for mapping in spec["parameter_mappings"]},
                 tag_names,
             )
+        self.assertIn(
+            "sum(tasks_count) as \"Количество\"",
+            specs_by_name["Статусы абонентов по типам проверок"]["dataset_query"]["native"]["query"],
+        )
         for spec in specs:
             self.assertTrue(spec["display"])
             self.assertEqual(spec["dataset_query"]["database"], 42)
@@ -188,6 +192,7 @@ class BootstrapSpecTests(unittest.TestCase):
             [param["name"] for param in overview["parameters"]],
             ["Период", "Тип проверки", "Бригада", "Статус абонента", "Наличие автомата"],
         )
+        self.assertEqual(overview["parameters"][0]["type"], "date/single")
         for card in overview["cards"] + subscribers["cards"]:
             self.assertTrue(card["parameter_mappings"])
             self.assertTrue(all(mapping["target"][0] == "variable" for mapping in card["parameter_mappings"]))
