@@ -15,6 +15,8 @@ METABASE_INIT_BOOTSTRAP = METABASE_INIT_DIR / "bootstrap.py"
 class MetabaseInfraContractTests(unittest.TestCase):
     def test_dev_compose_contains_metabase_stack(self) -> None:
         text = DEV_COMPOSE.read_text(encoding="utf-8")
+        self.assertIn("metabase/metabase:v0.59.6.3", text)
+        self.assertNotIn("metabase/metabase:v0.59.x", text)
         for token in (
             "clickhouse-db-init:",
             "metabase-db-init:",
@@ -34,6 +36,8 @@ class MetabaseInfraContractTests(unittest.TestCase):
 
     def test_prod_compose_contains_metabase_stack_and_nginx(self) -> None:
         text = PROD_COMPOSE.read_text(encoding="utf-8")
+        self.assertIn("metabase/metabase:v0.59.6.3", text)
+        self.assertNotIn("metabase/metabase:v0.59.x", text)
         for token in (
             "nginx:",
             "clickhouse-db-init:",

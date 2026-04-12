@@ -5,6 +5,7 @@
 ## Что добавлено
 
 - `metabase` с хранением application DB в PostgreSQL.
+- Образ Metabase зафиксирован на `metabase/metabase:v0.59.6.3`.
 - `clickhouse-db-init`, который создаёт БД `analytics_service` через `clickhouse-client --port 9123` до старта `analytics-service` и bootstrap Metabase.
 - `metabase-init`, который через API делает bootstrap, подключает ClickHouse и создаёт русскую коллекцию `Аналитика энергоконтроля`.
 - Два русских дашборда: `Обзор операций` и `Абоненты и объекты`.
