@@ -20,9 +20,9 @@ class BootstrapSpecTests(unittest.TestCase):
 
     def test_dashboard_specs_are_in_russian(self) -> None:
         cards_by_name = {
-            "Всего завершенных задач": {"id": 501},
-            "Динамика выполненных задач по дням": {"id": 902},
-            "Распределение абонентов по статусам": {"id": 1337},
+            "Всего завершенных задач": 501,
+            "Динамика выполненных задач по дням": 902,
+            "Распределение абонентов по статусам": 1337,
         }
         specs = bootstrap.build_dashboard_specs(cards_by_name)
         names = [item["name"] for item in specs]

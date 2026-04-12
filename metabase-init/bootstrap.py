@@ -11,7 +11,7 @@ def build_question_specs(database_id: int):
                 "database": database_id,
                 "type": "native",
                 "native": {
-                    "query": "select count(*) as total_completed_tasks from tasks where status = 'completed'",
+                    "query": "select count(*) as total_completed_tasks from v_bi_tasks_daily",
                 },
             },
         },
@@ -22,7 +22,7 @@ def build_question_specs(database_id: int):
                 "database": database_id,
                 "type": "native",
                 "native": {
-                    "query": "select completed_at::date as day, count(*) as completed_tasks from tasks group by 1 order by 1",
+                    "query": "select day, completed_tasks from v_bi_tasks_daily order by day",
                 },
             },
         },
@@ -33,7 +33,7 @@ def build_question_specs(database_id: int):
                 "database": database_id,
                 "type": "native",
                 "native": {
-                    "query": "select status, count(*) as subscribers from subscribers group by 1 order by 2 desc",
+                    "query": "select status, subscribers from v_bi_subscriber_object_profile order by subscribers desc",
                 },
             },
         },
@@ -46,11 +46,11 @@ def build_dashboard_specs(cards_by_name):
             "name": "Обзор операций",
             "cards": [
                 {
-                    "card_id": cards_by_name["Всего завершенных задач"]["id"],
+                    "card_id": cards_by_name["Всего завершенных задач"],
                     "card_name": "Всего завершенных задач",
                 },
                 {
-                    "card_id": cards_by_name["Динамика выполненных задач по дням"]["id"],
+                    "card_id": cards_by_name["Динамика выполненных задач по дням"],
                     "card_name": "Динамика выполненных задач по дням",
                 },
             ],
@@ -59,7 +59,7 @@ def build_dashboard_specs(cards_by_name):
             "name": "Абоненты и объекты",
             "cards": [
                 {
-                    "card_id": cards_by_name["Распределение абонентов по статусам"]["id"],
+                    "card_id": cards_by_name["Распределение абонентов по статусам"],
                     "card_name": "Распределение абонентов по статусам",
                 }
             ],
