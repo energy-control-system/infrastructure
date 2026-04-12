@@ -49,6 +49,13 @@ def build_parameter_mappings(tag_names=None) -> list:
     return [filter_parameter_mapping(tag_name) for tag_name in (tag_names or [])]
 
 
+def find_collection_dashboard(items, name):
+    for item in items or []:
+        if item.get("name") == name and item.get("type") == "dashboard":
+            return item
+    return None
+
+
 class MetabaseClient:
     def __init__(self, base_url: str) -> None:
         self.base_url = base_url.rstrip("/")
@@ -227,7 +234,8 @@ where 1 = 1
                 "type": "native",
                 "native": build_native_query(
                     """
-select round(avg(avg_duration_minutes), 2) as "Средняя длительность выполнения"
+select
+  sum(avg_duration_minutes * tasks_count) / nullIf(sum(tasks_count), 0) as "Средняя длительность выполнения"
 from v_bi_tasks_daily
 where 1 = 1
 [[and day >= {{period}}]]
@@ -355,7 +363,7 @@ order by "Количество задач" desc
                     """
 select
   subscriber_status_ru as "Статус",
-  count() as "Количество"
+  countDistinct(subscriber_id) as "Количество"
 from v_bi_subscriber_object_profile
 where 1 = 1
 [[and last_task_day >= {{period}}]]
@@ -573,9 +581,9 @@ def upsert_cards(client, collection_id: int, database_id: int):
 
 
 def upsert_dashboards(client, collection_id: int, cards_by_name):
-    dashboards = client.list_dashboards()
+    collection_items = client.list_collection_items(collection_id)
     for dashboard_spec in build_dashboard_specs(cards_by_name):
-        dashboard = find_by_name(dashboards, dashboard_spec["name"])
+        dashboard = find_collection_dashboard(collection_items, dashboard_spec["name"])
         payload = {
             "name": dashboard_spec["name"],
             "description": dashboard_spec["description"],

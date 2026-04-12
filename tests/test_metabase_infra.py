@@ -21,6 +21,9 @@ class MetabaseInfraContractTests(unittest.TestCase):
             "metabase-init:",
             "MB_SITE_LOCALE: ru",
             "MB_SITE_URL: http://localhost/metabase/",
+            "METABASE_URL: http://metabase:3000",
+            "METABASE_ADMIN_EMAIL: admin@localhost",
+            "METABASE_CLICKHOUSE_DB: analytics_service",
             "depends_on:",
         ):
             self.assertIn(token, text)
@@ -34,6 +37,9 @@ class MetabaseInfraContractTests(unittest.TestCase):
             "metabase-init:",
             "MB_SITE_LOCALE: ru",
             "MB_SITE_URL: http://tns.quassbot.ru/metabase/",
+            "METABASE_URL: ${METABASE_URL:?METABASE_URL is required}",
+            "METABASE_ADMIN_EMAIL: ${METABASE_ADMIN_EMAIL:?METABASE_ADMIN_EMAIL is required}",
+            "METABASE_CLICKHOUSE_PASSWORD: ${METABASE_CLICKHOUSE_PASSWORD:?METABASE_CLICKHOUSE_PASSWORD is required}",
             "./nginx.prod.conf:/etc/nginx/nginx.conf",
         ):
             self.assertIn(token, text)

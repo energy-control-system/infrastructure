@@ -75,6 +75,14 @@ class RecordingClient:
         self.calls.append(("replace_dashboard_cards", dashboard_id, payload["cards"]))
 
 
+class DashboardScopeClient(RecordingClient):
+    def list_dashboards(self):
+        self.calls.append(("list_dashboards",))
+        return [{"id": 900, "name": "Обзор операций"}]
+
+
+
+
 class BootstrapSpecTests(unittest.TestCase):
     def test_question_specs_reference_bi_views_and_filters(self) -> None:
         specs = bootstrap.build_question_specs(database_id=42)
@@ -102,6 +110,15 @@ class BootstrapSpecTests(unittest.TestCase):
         self.assertIn("v_bi_brigade_performance", sql_text)
         self.assertIn("v_bi_inspection_results", sql_text)
         self.assertIn("v_bi_subscriber_object_profile", sql_text)
+        specs_by_name = {item["name"]: item for item in specs}
+        self.assertIn(
+            "sum(avg_duration_minutes * tasks_count) / nullIf(sum(tasks_count), 0)",
+            specs_by_name["Средняя длительность выполнения"]["dataset_query"]["native"]["query"],
+        )
+        self.assertIn(
+            "countDistinct(subscriber_id)",
+            specs_by_name["Распределение абонентов по статусам"]["dataset_query"]["native"]["query"],
+        )
         expected_tags = {
             "Всего завершенных задач": {"period"},
             "Нарушения выявлены": {"period"},
@@ -117,7 +134,6 @@ class BootstrapSpecTests(unittest.TestCase):
             "Статусы абонентов по типам проверок": {"period", "inspection_type", "subscriber_status"},
             "Таблица объектов и абонентов": {"period", "subscriber_status", "automaton_state"},
         }
-        specs_by_name = {item["name"]: item for item in specs}
         for name, tag_names in expected_tags.items():
             spec = specs_by_name[name]
             template_tags = spec["dataset_query"]["native"]["template-tags"]
@@ -211,6 +227,15 @@ class BootstrapSpecTests(unittest.TestCase):
         for card in overview["cards"] + subscribers["cards"]:
             self.assertTrue(card["parameter_mappings"])
             self.assertTrue(all(mapping["target"][0] == "variable" for mapping in card["parameter_mappings"]))
+
+    def test_run_bootstrap_ignores_global_dashboards_outside_collection(self) -> None:
+        client = DashboardScopeClient()
+
+        bootstrap.run_bootstrap(client)
+
+        self.assertNotIn("update_dashboard", [item[0] for item in client.calls])
+        create_dashboard_calls = [item for item in client.calls if item[0] == "create_dashboard"]
+        self.assertEqual(len(create_dashboard_calls), 2)
 
     def test_run_bootstrap_updates_existing_database_and_syncs_it(self) -> None:
         client = RecordingClient()
