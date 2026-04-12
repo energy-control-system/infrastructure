@@ -49,9 +49,27 @@ def build_parameter_mappings(tag_names=None) -> list:
     return [filter_parameter_mapping(tag_name) for tag_name in (tag_names or [])]
 
 
+def extract_items(payload):
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        for key in ("data", "items", "results"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return value
+    return []
+
+
 def find_collection_dashboard(items, name):
     for item in items or []:
         if item.get("name") == name and item.get("type") == "dashboard":
+            return item
+    return None
+
+
+def find_collection_card(items, name):
+    for item in items or []:
+        if item.get("name") == name and item.get("type") == "card":
             return item
     return None
 
@@ -121,7 +139,7 @@ class MetabaseClient:
         self.session_token = session["id"]
 
     def list_databases(self):
-        return self.request("GET", "/api/database/")
+        return extract_items(self.request("GET", "/api/database/"))
 
     def create_database(self, payload=None):
         return self.request("POST", "/api/database/", payload or build_database_payload())
@@ -133,13 +151,13 @@ class MetabaseClient:
         return self.request("POST", f"/api/database/{database_id}/sync_schema")
 
     def list_collections(self):
-        return self.request("GET", "/api/collection/")
+        return extract_items(self.request("GET", "/api/collection/"))
 
     def create_collection(self, name: str):
         return self.request("POST", "/api/collection/", {"name": name})
 
     def list_collection_items(self, collection_id: int):
-        return self.request("GET", f"/api/collection/{collection_id}/items")
+        return extract_items(self.request("GET", f"/api/collection/{collection_id}/items"))
 
     def create_card(self, payload):
         return self.request("POST", "/api/card", payload)
@@ -148,7 +166,7 @@ class MetabaseClient:
         return self.request("PUT", f"/api/card/{card_id}", payload)
 
     def list_dashboards(self):
-        return self.request("GET", "/api/dashboard/")
+        return extract_items(self.request("GET", "/api/dashboard/"))
 
     def create_dashboard(self, payload):
         return self.request("POST", "/api/dashboard/", payload)
@@ -544,7 +562,7 @@ def build_dashboard_specs(cards_by_name):
 
 
 def upsert_database(client):
-    existing = find_by_name(client.list_databases(), env("METABASE_CLICKHOUSE_NAME", "Analytics BI"))
+    existing = find_by_name(extract_items(client.list_databases()), env("METABASE_CLICKHOUSE_NAME", "Analytics BI"))
     payload = build_database_payload()
     if existing is None:
         database = client.create_database(payload)
@@ -555,14 +573,14 @@ def upsert_database(client):
 
 
 def upsert_collection(client):
-    collection = find_by_name(client.list_collections(), default_collection_name())
+    collection = find_by_name(extract_items(client.list_collections()), default_collection_name())
     if collection is None:
         return client.create_collection(default_collection_name())
     return collection
 
 
 def upsert_cards(client, collection_id: int, database_id: int):
-    items = client.list_collection_items(collection_id)
+    items = extract_items(client.list_collection_items(collection_id))
     cards_by_name = {}
     for spec in build_question_specs(database_id):
         payload = {
@@ -571,7 +589,7 @@ def upsert_cards(client, collection_id: int, database_id: int):
             "dataset_query": spec["dataset_query"],
             "collection_id": collection_id,
         }
-        existing = find_by_name(items, spec["name"])
+        existing = find_collection_card(items, spec["name"])
         if existing is None:
             card = client.create_card(payload)
         else:
@@ -581,7 +599,7 @@ def upsert_cards(client, collection_id: int, database_id: int):
 
 
 def upsert_dashboards(client, collection_id: int, cards_by_name):
-    collection_items = client.list_collection_items(collection_id)
+    collection_items = extract_items(client.list_collection_items(collection_id))
     for dashboard_spec in build_dashboard_specs(cards_by_name):
         dashboard = find_collection_dashboard(collection_items, dashboard_spec["name"])
         payload = {

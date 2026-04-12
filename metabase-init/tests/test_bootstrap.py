@@ -81,6 +81,29 @@ class DashboardScopeClient(RecordingClient):
         return [{"id": 900, "name": "Обзор операций"}]
 
 
+class PaginatedScopeClient(RecordingClient):
+    def list_databases(self):
+        self.calls.append(("list_databases",))
+        return {"data": [{"id": 7, "name": "Analytics BI"}]}
+
+    def list_collections(self):
+        self.calls.append(("list_collections",))
+        return {"data": [{"id": 11, "name": "Аналитика энергоконтроля"}]}
+
+    def list_collection_items(self, collection_id):
+        self.calls.append(("list_collection_items", collection_id))
+        return {
+            "data": [
+                {"id": 501, "name": "Всего завершенных задач", "type": "dashboard"},
+                {"id": 777, "name": "Всего завершенных задач", "type": "card"},
+            ]
+        }
+
+    def list_dashboards(self):
+        self.calls.append(("list_dashboards",))
+        return {"data": []}
+
+
 
 
 class BootstrapSpecTests(unittest.TestCase):
@@ -236,6 +259,16 @@ class BootstrapSpecTests(unittest.TestCase):
         self.assertNotIn("update_dashboard", [item[0] for item in client.calls])
         create_dashboard_calls = [item for item in client.calls if item[0] == "create_dashboard"]
         self.assertEqual(len(create_dashboard_calls), 2)
+
+    def test_run_bootstrap_handles_paginated_lists_and_card_only_lookup(self) -> None:
+        client = PaginatedScopeClient()
+
+        bootstrap.run_bootstrap(client)
+
+        update_card_calls = [item for item in client.calls if item[0] == "update_card"]
+        self.assertTrue(update_card_calls)
+        self.assertEqual(update_card_calls[0][1], 777)
+        self.assertNotIn(501, [item[1] for item in update_card_calls])
 
     def test_run_bootstrap_updates_existing_database_and_syncs_it(self) -> None:
         client = RecordingClient()
