@@ -1,10 +1,18 @@
+import urllib.error
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from tests.demo_seed_client import poll_until
+from tests.demo_seed_client import ApiError, poll_until
 
 
 MOSCOW = timezone(timedelta(hours=3))
+STACK_READY_PATHS = (
+    "/api/brigade-service/brigades",
+    "/api/subscriber-service/subscribers",
+    "/api/task-service/tasks",
+    "/api/inspection-service/inspections",
+    "/api/analytics-service/reports",
+)
 
 
 @dataclass(frozen=True)
@@ -21,12 +29,54 @@ class DemoSeedWorkflow:
     def __init__(self, client) -> None:
         self.client = client
 
+    def poll_transient(self, fetch, is_ready, timeout_seconds: float, interval_seconds: float, timeout_message: str):
+        last_error = None
+
+        def fetch_or_none():
+            nonlocal last_error
+
+            try:
+                value = fetch()
+            except ApiError as error:
+                if error.status is not None and error.status < 500:
+                    raise
+
+                last_error = error
+                return None
+            except urllib.error.URLError as error:
+                last_error = error
+                return None
+
+            last_error = None
+            return value
+
+        def on_timeout():
+            if last_error is not None:
+                raise TimeoutError(f"{timeout_message}: {last_error}") from last_error
+            raise TimeoutError(timeout_message)
+
+        return poll_until(
+            fetch=fetch_or_none,
+            is_ready=is_ready,
+            timeout_seconds=timeout_seconds,
+            interval_seconds=interval_seconds,
+            on_timeout=on_timeout,
+        )
+
     def assert_stack_ready(self) -> None:
-        self.client.request_json("GET", "/api/brigade-service/brigades")
-        self.client.request_json("GET", "/api/subscriber-service/subscribers")
-        self.client.request_json("GET", "/api/task-service/tasks")
-        self.client.request_json("GET", "/api/inspection-service/inspections")
-        self.client.request_json("GET", "/api/analytics-service/reports")
+        self.poll_transient(
+            fetch=self._probe_stack_ready,
+            is_ready=lambda value: value is True,
+            timeout_seconds=120.0,
+            interval_seconds=2.0,
+            timeout_message="stack did not become ready",
+        )
+
+    def _probe_stack_ready(self) -> bool:
+        for path in STACK_READY_PATHS:
+            self.client.request_json("GET", path)
+
+        return True
 
     def create_brigades(self, brigades):
         created = []
@@ -180,6 +230,15 @@ class DemoSeedWorkflow:
     def list_reports(self):
         return self.client.request_json("GET", "/api/analytics-service/reports")
 
+    def wait_for_basic_report(self):
+        return self.poll_transient(
+            fetch=self.create_basic_report,
+            is_ready=lambda value: isinstance(value, dict) and "ID" in value and value.get("Files"),
+            timeout_seconds=60.0,
+            interval_seconds=2.0,
+            timeout_message="analytics-service did not create a basic report",
+        )
+
     def run_full_demo(self, plan) -> str:
         self.assert_stack_ready()
 
@@ -191,12 +250,7 @@ class DemoSeedWorkflow:
             brigade_id = brigade_ids[case.brigade_slot]
             results.append(self.run_case(case, brigade_id=brigade_id))
 
-        report = poll_until(
-            fetch=self.create_basic_report,
-            is_ready=lambda value: isinstance(value, dict) and "ID" in value and value.get("Files"),
-            timeout_seconds=60.0,
-            interval_seconds=2.0,
-        )
+        report = self.wait_for_basic_report()
 
         reports = self.list_reports()
         report_ids = [item["ID"] for item in reports]
