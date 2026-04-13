@@ -1,3 +1,4 @@
+import re
 import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import patch
@@ -82,6 +83,26 @@ class DemoSeedDataTests(unittest.TestCase):
         self.assertEqual(30, len(contract_numbers))
         self.assertEqual(30, len(device_numbers))
         self.assertEqual(60, len(seal_numbers))
+
+    def test_build_demo_plan_matches_subscriber_service_contracts(self) -> None:
+        plan = build_demo_plan()
+        account_number_pattern = re.compile(r"^[А-ЯЁ][А-ЯЁ0-9-]{2,18}[0-9]$")
+        russian_name_pattern = re.compile(r"^[А-ЯЁа-яё -]+$")
+        phone_pattern = re.compile(r"^(?:\+7|7|8)\d{10}$")
+
+        for case in plan.cases:
+            with self.subTest(account_number=case.subscriber.account_number):
+                self.assertRegex(case.subscriber.account_number, account_number_pattern)
+                self.assertNotIn("--", case.subscriber.account_number)
+                self.assertRegex(case.subscriber.surname, russian_name_pattern)
+                self.assertRegex(case.subscriber.name, russian_name_pattern)
+                self.assertRegex(case.subscriber.patronymic, russian_name_pattern)
+                self.assertRegex(case.subscriber.phone_number, phone_pattern)
+                self.assertRegex(case.subscriber.inn, r"^\d{10}(\d{2})?$")
+                self.assertRegex(case.subscriber.birth_date, r"^\d{4}-\d{2}-\d{2}$")
+                self.assertRegex(case.subscriber.passport_series, r"^\d{4}$")
+                self.assertRegex(case.subscriber.passport_number, r"^\d{6}$")
+                self.assertRegex(case.subscriber.passport_issue_date, r"^\d{2}\.\d{2}\.\d{4}$")
 
 
 if __name__ == "__main__":
