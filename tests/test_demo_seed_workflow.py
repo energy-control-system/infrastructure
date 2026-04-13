@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime, timezone, timedelta
+from unittest.mock import patch
 
 from tests.demo_seed_data import build_demo_plan
 from tests.demo_seed_workflow import DemoSeedWorkflow
@@ -52,6 +53,26 @@ class DemoSeedWorkflowTests(unittest.TestCase):
         self.assertEqual(77, payload["InspectedDevices"][0]["DeviceID"])
         self.assertEqual([501, 502], [item["SealID"] for item in payload["InspectedDevices"][0]["InspectedSeals"]])
 
+    def test_build_finish_payload_for_resumption(self) -> None:
+        plan = build_demo_plan()
+        workflow = DemoSeedWorkflow(_FakeClient())
+        energy_action_at = datetime(2026, 4, 13, 10, 30, tzinfo=MOSCOW)
+
+        payload = workflow.build_finish_payload(
+            plan.cases[8],
+            device_id=79,
+            seal_ids=[601, 602],
+            energy_action_at=energy_action_at,
+        )
+
+        self.assertEqual(2, payload["Type"])
+        self.assertEqual(2, payload["Resolution"])
+        self.assertEqual("Восстановление схемы электроснабжения в этажном щите.", payload["Method"])
+        self.assertEqual(2, payload["ReasonType"])
+        self.assertEqual(79, payload["InspectedDevices"][0]["DeviceID"])
+        self.assertFalse(payload["IsRestrictionChecked"])
+        self.assertFalse(payload["IsViolationDetected"])
+
     def test_build_finish_payload_for_verification_violation(self) -> None:
         plan = build_demo_plan()
         workflow = DemoSeedWorkflow(_FakeClient())
@@ -69,6 +90,19 @@ class DemoSeedWorkflowTests(unittest.TestCase):
         self.assertTrue(payload["IsViolationDetected"])
         self.assertTrue(payload["IsExpenseAvailable"])
         self.assertEqual("После введенного ограничения зафиксирован расход электроэнергии.", payload["ViolationDescription"])
+
+    def test_report_period_uses_single_moscow_timestamp(self) -> None:
+        workflow = DemoSeedWorkflow(_FakeClient())
+        captured_now = datetime(2026, 4, 13, 23, 30, tzinfo=MOSCOW)
+
+        with patch("tests.demo_seed_workflow.datetime") as mock_datetime:
+            mock_datetime.now.return_value = captured_now
+
+            period_start, period_end = workflow.report_period()
+
+        self.assertEqual("2026-04-13", period_start)
+        self.assertEqual("2026-04-14", period_end)
+        mock_datetime.now.assert_called_once_with(MOSCOW)
 
 
 if __name__ == "__main__":

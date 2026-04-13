@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 
 MOSCOW = timezone(timedelta(hours=3))
@@ -89,11 +89,23 @@ class DemoSeedWorkflow:
             "verification": 3,
             "unauthorized_connection": 4,
         }
+        resolution_map = {
+            "limitation": 1,
+            "resumption": 2,
+            "verification": 1,
+            "unauthorized_connection": 1,
+        }
         method_map = {
             "limitation": "Отключение коммутационным аппаратом на фасаде здания.",
             "resumption": "Восстановление схемы электроснабжения в этажном щите.",
             "verification": "Осмотр прибора учета и проверка схемы подключения.",
             "unauthorized_connection": "Осмотр прибора учета и проверка схемы подключения.",
+        }
+        reason_type_map = {
+            "limitation": 3,
+            "resumption": 2,
+            "verification": 3,
+            "unauthorized_connection": 3,
         }
 
         inspection_kind = case.inspection_kind
@@ -102,11 +114,11 @@ class DemoSeedWorkflow:
 
         payload = {
             "Type": type_map[inspection_kind],
-            "Resolution": 1,
+            "Resolution": resolution_map[inspection_kind],
             "LimitReason": None,
             "Method": method_map[inspection_kind],
             "MethodBy": 2,
-            "ReasonType": 3,
+            "ReasonType": reason_type_map[inspection_kind],
             "ReasonDescription": None,
             "IsRestrictionChecked": is_verification or is_unauthorized,
             "IsViolationDetected": is_verification or is_unauthorized,
@@ -141,15 +153,10 @@ class DemoSeedWorkflow:
             ],
         }
 
-        if inspection_kind == "resumption":
-            payload["ReasonType"] = 2
-
-        if inspection_kind == "unauthorized_connection":
-            payload["ReasonType"] = 3
-
         return payload
 
     def report_period(self) -> tuple[str, str]:
-        period_start = date.today().isoformat()
-        period_end = (date.today() + timedelta(days=1)).isoformat()
+        current = datetime.now(MOSCOW)
+        period_start = current.date().isoformat()
+        period_end = (current + timedelta(days=1)).date().isoformat()
         return period_start, period_end
