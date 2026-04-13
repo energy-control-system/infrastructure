@@ -163,7 +163,9 @@ services:
       MB_DB_PASS: GvcLkrWP9x8ey2xI9F
       MB_SITE_NAME: Энергоконтроль
       MB_SITE_LOCALE: ru
-      MB_SITE_URL: http://localhost/metabase/
+      MB_SITE_URL: ${MB_SITE_URL:-http://localhost/metabase/}
+    ports:
+      - "3000:3000"
     depends_on:
       metabase-db-init:
         condition: service_completed_successfully
@@ -190,7 +192,7 @@ services:
       METABASE_COLLECTION_NAME: Аналитика энергоконтроля
       METABASE_CLICKHOUSE_NAME: Analytics BI
       METABASE_CLICKHOUSE_HOST: clickhouse
-      METABASE_CLICKHOUSE_PORT: 9123
+      METABASE_CLICKHOUSE_PORT: 8123
       METABASE_CLICKHOUSE_DB: analytics_service
       METABASE_CLICKHOUSE_USER: root
       METABASE_CLICKHOUSE_PASSWORD: s4c1A2bgbqK2FJuR20R7

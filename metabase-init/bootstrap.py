@@ -62,14 +62,14 @@ def extract_items(payload):
 
 def find_collection_dashboard(items, name):
     for item in items or []:
-        if item.get("name") == name and item.get("type") == "dashboard":
+        if item.get("name") == name and (item.get("type") or item.get("model")) == "dashboard":
             return item
     return None
 
 
 def find_collection_card(items, name):
     for item in items or []:
-        if item.get("name") == name and item.get("type") == "card":
+        if item.get("name") == name and (item.get("type") or item.get("model")) == "card":
             return item
     return None
 
@@ -109,6 +109,8 @@ class MetabaseClient:
 
     def is_setup_complete(self) -> bool:
         props = self.request("GET", "/api/session/properties")
+        if "has-user-setup" in props:
+            return bool(props.get("has-user-setup"))
         return not bool(props.get("setup-token"))
 
     def setup(self) -> None:
@@ -174,8 +176,8 @@ class MetabaseClient:
     def update_dashboard(self, dashboard_id: int, payload):
         return self.request("PUT", f"/api/dashboard/{dashboard_id}", payload)
 
-    def replace_dashboard_cards(self, dashboard_id: int, payload):
-        return self.request("PUT", f"/api/dashboard/{dashboard_id}/cards", payload)
+    def get_dashboard(self, dashboard_id: int):
+        return self.request("GET", f"/api/dashboard/{dashboard_id}")
 
 
 def build_database_payload() -> dict:
@@ -184,7 +186,7 @@ def build_database_payload() -> dict:
         "name": env("METABASE_CLICKHOUSE_NAME", "Analytics BI"),
         "details": {
             "host": env("METABASE_CLICKHOUSE_HOST", "clickhouse"),
-            "port": int(env("METABASE_CLICKHOUSE_PORT", "9123")),
+            "port": int(env("METABASE_CLICKHOUSE_PORT", "8123")),
             "dbname": env("METABASE_CLICKHOUSE_DB", "analytics_service"),
             "user": env("METABASE_CLICKHOUSE_USER", "root"),
             "password": env("METABASE_CLICKHOUSE_PASSWORD", "s4c1A2bgbqK2FJuR20R7"),
@@ -599,6 +601,33 @@ def upsert_cards(client, collection_id: int, database_id: int):
     return cards_by_name
 
 
+def build_dashcards_payload(existing_dashcards, desired_cards):
+    existing_by_card_id = {}
+    for dashcard in existing_dashcards or []:
+        card_id = dashcard.get("card_id") or ((dashcard.get("card") or {}).get("id"))
+        if card_id is not None and card_id not in existing_by_card_id:
+            existing_by_card_id[card_id] = dashcard
+
+    dashcards = []
+    next_temporary_id = -1
+    for card in desired_cards:
+        existing = existing_by_card_id.get(card["card_id"])
+        dashcards.append(
+            {
+                "id": existing["id"] if existing is not None else next_temporary_id,
+                "card_id": card["card_id"],
+                "row": card["row"],
+                "col": card["col"],
+                "size_x": card["size_x"],
+                "size_y": card["size_y"],
+                "parameter_mappings": card["parameter_mappings"],
+            }
+        )
+        if existing is None:
+            next_temporary_id -= 1
+    return dashcards
+
+
 def upsert_dashboards(client, collection_id: int, cards_by_name):
     collection_items = extract_items(client.list_collection_items(collection_id))
     for dashboard_spec in build_dashboard_specs(cards_by_name):
@@ -611,24 +640,11 @@ def upsert_dashboards(client, collection_id: int, cards_by_name):
         }
         if dashboard is None:
             dashboard = client.create_dashboard(payload)
+            dashboard_state = {"dashcards": []}
         else:
-            dashboard = client.update_dashboard(dashboard["id"], payload)
-        client.replace_dashboard_cards(
-            dashboard["id"],
-            {
-                "cards": [
-                    {
-                        "card_id": card["card_id"],
-                        "row": card["row"],
-                        "col": card["col"],
-                        "size_x": card["size_x"],
-                        "size_y": card["size_y"],
-                        "parameter_mappings": card["parameter_mappings"],
-                    }
-                    for card in dashboard_spec["cards"]
-                ]
-            },
-        )
+            dashboard_state = client.get_dashboard(dashboard["id"])
+        payload["dashcards"] = build_dashcards_payload(dashboard_state.get("dashcards", []), dashboard_spec["cards"])
+        client.update_dashboard(dashboard["id"], payload)
 
 
 def run_bootstrap(client) -> None:

@@ -70,11 +70,12 @@ class RecordingClient:
         return {"id": self._dashboard_id}
 
     def update_dashboard(self, dashboard_id, payload):
-        self.calls.append(("update_dashboard", dashboard_id, payload["name"]))
+        self.calls.append(("update_dashboard", dashboard_id, payload))
         return {"id": dashboard_id}
 
-    def replace_dashboard_cards(self, dashboard_id, payload):
-        self.calls.append(("replace_dashboard_cards", dashboard_id, payload["cards"]))
+    def get_dashboard(self, dashboard_id):
+        self.calls.append(("get_dashboard", dashboard_id))
+        return {"id": dashboard_id, "dashcards": []}
 
 
 class SetupRecordingClient(bootstrap.MetabaseClient):
@@ -88,6 +89,17 @@ class SetupRecordingClient(bootstrap.MetabaseClient):
             return {"setup-token": "token"}
         if method == "POST" and path == "/api/setup":
             return {"ok": True}
+        raise AssertionError(f"unexpected request: {method} {path}")
+
+
+class SetupStateClient(bootstrap.MetabaseClient):
+    def __init__(self, props) -> None:
+        super().__init__("http://metabase.example")
+        self.props = props
+
+    def request(self, method: str, path: str, payload=None):
+        if method == "GET" and path == "/api/session/properties":
+            return self.props
         raise AssertionError(f"unexpected request: {method} {path}")
 
 
@@ -117,8 +129,8 @@ class PaginatedScopeClient(RecordingClient):
         self.calls.append(("list_collection_items", collection_id))
         return {
             "data": [
-                {"id": 501, "name": "Всего завершенных задач", "type": "dashboard"},
-                {"id": 777, "name": "Всего завершенных задач", "type": "card"},
+                {"id": 501, "name": "Всего завершенных задач", "model": "dashboard"},
+                {"id": 777, "name": "Всего завершенных задач", "model": "card"},
             ]
         }
 
@@ -133,9 +145,62 @@ class UpdateCardPayloadClient(PaginatedScopeClient):
         return {"id": card_id}
 
 
+class ExistingDashboardClient(RecordingClient):
+    def list_collections(self):
+        self.calls.append(("list_collections",))
+        return {"data": [{"id": 11, "name": "Аналитика энергоконтроля"}]}
+
+    def list_collection_items(self, collection_id):
+        self.calls.append(("list_collection_items", collection_id))
+        return {
+            "data": [
+                {"id": 301, "name": "Обзор операций", "model": "dashboard"},
+                {"id": 401, "name": "Всего завершенных задач", "model": "card"},
+                {"id": 402, "name": "Нарушения выявлены", "model": "card"},
+                {"id": 403, "name": "Средняя длительность выполнения", "model": "card"},
+                {"id": 404, "name": "Случаи несанкционированного потребления", "model": "card"},
+                {"id": 405, "name": "Динамика выполненных задач по дням", "model": "card"},
+                {"id": 406, "name": "Распределение по типам проверок", "model": "card"},
+                {"id": 407, "name": "Результаты проверок", "model": "card"},
+                {"id": 408, "name": "Рейтинг бригад по числу выполненных задач", "model": "card"},
+                {"id": 409, "name": "Распределение абонентов по статусам", "model": "card"},
+                {"id": 410, "name": "Объекты с автоматом и без автомата", "model": "card"},
+                {"id": 411, "name": "Наиболее частые адреса проверок", "model": "card"},
+                {"id": 412, "name": "Статусы абонентов по типам проверок", "model": "card"},
+                {"id": 413, "name": "Таблица объектов и абонентов", "model": "card"},
+            ]
+        }
+
+    def get_dashboard(self, dashboard_id):
+        self.calls.append(("get_dashboard", dashboard_id))
+        if dashboard_id == 301:
+            return {
+                "id": 301,
+                "dashcards": [
+                    {"id": 901, "card_id": 401, "row": 99, "col": 99, "size_x": 1, "size_y": 1},
+                    {"id": 999, "card_id": 9999, "row": 1, "col": 1, "size_x": 1, "size_y": 1},
+                ],
+            }
+        return {"id": dashboard_id, "dashcards": []}
+
+
 
 
 class BootstrapSpecTests(unittest.TestCase):
+    def test_find_collection_lookup_supports_model_key(self) -> None:
+        items = [
+            {"id": 10, "name": "Обзор операций", "model": "dashboard"},
+            {"id": 11, "name": "Всего завершенных задач", "model": "card"},
+        ]
+
+        self.assertEqual(bootstrap.find_collection_dashboard(items, "Обзор операций")["id"], 10)
+        self.assertEqual(bootstrap.find_collection_card(items, "Всего завершенных задач")["id"], 11)
+
+    def test_is_setup_complete_prefers_has_user_setup_flag(self) -> None:
+        client = SetupStateClient({"has-user-setup": True, "setup-token": "token"})
+
+        self.assertTrue(client.is_setup_complete())
+
     def test_setup_uses_valid_default_admin_email(self) -> None:
         client = SetupRecordingClient()
 
@@ -145,11 +210,11 @@ class BootstrapSpecTests(unittest.TestCase):
         setup_call = next(item for item in client.calls if item[0] == "POST" and item[1] == "/api/setup")
         self.assertEqual(setup_call[2]["user"]["email"], "admin@example.com")
 
-    def test_build_database_payload_defaults_to_clickhouse_native_port(self) -> None:
+    def test_build_database_payload_defaults_to_clickhouse_http_port(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             payload = bootstrap.build_database_payload()
 
-        self.assertEqual(payload["details"]["port"], 9123)
+        self.assertEqual(payload["details"]["port"], 8123)
 
     def test_question_specs_reference_bi_views_and_filters(self) -> None:
         specs = bootstrap.build_question_specs(database_id=42)
@@ -300,9 +365,9 @@ class BootstrapSpecTests(unittest.TestCase):
 
         bootstrap.run_bootstrap(client)
 
-        self.assertNotIn("update_dashboard", [item[0] for item in client.calls])
         create_dashboard_calls = [item for item in client.calls if item[0] == "create_dashboard"]
         self.assertEqual(len(create_dashboard_calls), 2)
+        self.assertNotIn(("update_dashboard", 900), [(item[0], item[1]) for item in client.calls if item[0] == "update_dashboard"])
 
     def test_run_bootstrap_handles_paginated_lists_and_card_only_lookup(self) -> None:
         client = UpdateCardPayloadClient()
@@ -328,6 +393,77 @@ class BootstrapSpecTests(unittest.TestCase):
         self.assertTrue(
             all(call[1]["visualization_settings"] == {} for call in create_card_calls),
             msg="create payloads must include empty visualization_settings",
+        )
+
+    def test_build_dashcards_payload_reuses_existing_ids_and_creates_negative_ids_for_new_cards(self) -> None:
+        existing_dashcards = [
+            {"id": 901, "card_id": 1, "row": 99, "col": 99, "size_x": 1, "size_y": 1},
+            {"id": 999, "card_id": 9999, "row": 1, "col": 1, "size_x": 1, "size_y": 1},
+        ]
+        desired_cards = [
+            {
+                "card_name": "Всего завершенных задач",
+                "card_id": 1,
+                "row": 0,
+                "col": 0,
+                "size_x": 6,
+                "size_y": 3,
+                "parameter_mappings": bootstrap.build_parameter_mappings(["period"]),
+            },
+            {
+                "card_name": "Нарушения выявлены",
+                "card_id": 2,
+                "row": 0,
+                "col": 6,
+                "size_x": 6,
+                "size_y": 3,
+                "parameter_mappings": bootstrap.build_parameter_mappings(["period"]),
+            },
+        ]
+
+        payload = bootstrap.build_dashcards_payload(existing_dashcards, desired_cards)
+
+        self.assertEqual(
+            payload,
+            [
+                {
+                    "id": 901,
+                    "card_id": 1,
+                    "row": 0,
+                    "col": 0,
+                    "size_x": 6,
+                    "size_y": 3,
+                    "parameter_mappings": bootstrap.build_parameter_mappings(["period"]),
+                },
+                {
+                    "id": -1,
+                    "card_id": 2,
+                    "row": 0,
+                    "col": 6,
+                    "size_x": 6,
+                    "size_y": 3,
+                    "parameter_mappings": bootstrap.build_parameter_mappings(["period"]),
+                },
+            ],
+        )
+
+    def test_run_bootstrap_updates_dashboards_via_put_with_dashcards(self) -> None:
+        client = ExistingDashboardClient()
+
+        bootstrap.run_bootstrap(client)
+
+        update_dashboard_calls = [item for item in client.calls if item[0] == "update_dashboard"]
+        self.assertEqual(len(update_dashboard_calls), 2)
+        overview_update = next(call for call in update_dashboard_calls if call[1] == 301)
+        dashcards = overview_update[2]["dashcards"]
+        self.assertEqual(dashcards[0]["id"], 901)
+        self.assertEqual(dashcards[0]["card_id"], 401)
+        self.assertEqual(dashcards[0]["row"], 0)
+        self.assertEqual(dashcards[1]["id"], -1)
+        self.assertEqual(dashcards[-1]["id"], -7)
+        self.assertTrue(
+            all("card_id" not in mapping for dashcard in dashcards for mapping in dashcard["parameter_mappings"]),
+            msg="dashboard parameter mappings must not be pre-bound to card ids for dashboard PUT payloads",
         )
 
     def test_run_bootstrap_updates_existing_database_and_syncs_it(self) -> None:

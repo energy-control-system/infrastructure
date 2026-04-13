@@ -14,7 +14,7 @@
 
 ## Dev
 
-1. Поднимите стенд:
+1. Полный стенд с `Nginx` и маршрутом `/metabase`:
    ```bash
    docker compose -f infrastructure/docker-compose.dev.yml up -d --build
    ```
@@ -22,6 +22,23 @@
    - `http://localhost/metabase/`
 3. Если нужен быстрый старт после чистого стенда, дождитесь завершения `clickhouse-db-init`, затем `metabase-init`.
 4. В dev по умолчанию используется валидный адрес bootstrap-пользователя: `admin@example.com`.
+
+## Minimal run
+
+Если нужно поднять только `analytics-service`, его зависимости и Metabase, без полного стенда:
+
+```bash
+MB_SITE_URL=http://localhost:3000/ docker compose -f infrastructure/docker-compose.dev.yml up -d --build \
+  postgres kafka clickhouse clickhouse-db-init analytics-service \
+  metabase-db-init metabase metabase-init
+```
+
+Для такого запуска `Nginx` не нужен; Metabase доступен напрямую по порту `3000`:
+
+- `http://localhost:3000/`
+- `http://localhost:3000/api/health`
+
+Для полного dev-стенда без override сохраняется путь через `Nginx`: `http://localhost/metabase/`.
 
 ## Что должно быть в Metabase
 
@@ -46,13 +63,17 @@
 - `METABASE_CLICKHOUSE_USER`
 - `METABASE_CLICKHOUSE_PASSWORD`
 
-Порт ClickHouse для Metabase зафиксирован на `9123` инфраструктурой, чтобы совпадать с `clickhouse.config.xml`.
+Для Metabase используется HTTP-порт ClickHouse `8123`, а для `clickhouse-client` в init/check-командах — native-порт `9123`.
 
 ## Быстрая проверка
 
-- Health Metabase:
+- Health Metabase через `Nginx`:
   ```bash
   curl -fsS http://localhost/metabase/api/health
+  ```
+- Health Metabase для `minimal run`:
+  ```bash
+  curl -fsS http://localhost:3000/api/health
   ```
 - Логи bootstrap:
   ```bash
