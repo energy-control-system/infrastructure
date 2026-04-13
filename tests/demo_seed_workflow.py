@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+from tests.demo_seed_client import poll_until
+
 
 MOSCOW = timezone(timedelta(hours=3))
 
@@ -162,10 +164,18 @@ class DemoSeedWorkflow:
         return period_start, period_end
 
     def wait_for_inspection(self, task_id: int):
-        return self.client.request_json("GET", f"/api/inspection-service/inspections/task/{task_id}")
+        return poll_until(
+            lambda: self.client.request_json("GET", f"/api/inspection-service/inspections/task/{task_id}"),
+            lambda value: value is not None,
+            timeout_seconds=30.0,
+        )
 
     def wait_for_task_done(self, task_id: int):
-        return self.client.request_json("GET", f"/api/task-service/tasks/{task_id}")
+        return poll_until(
+            lambda: self.client.request_json("GET", f"/api/task-service/tasks/{task_id}"),
+            lambda value: value is not None,
+            timeout_seconds=30.0,
+        )
 
     def run_case(self, case, brigade_id: int) -> CaseRunResult:
         subscriber = self.client.request_json(
