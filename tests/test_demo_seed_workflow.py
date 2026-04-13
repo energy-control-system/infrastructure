@@ -177,12 +177,28 @@ class DemoSeedWorkflowTests(unittest.TestCase):
         self.assertIn("Sample Task IDs: 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, ...", summary)
 
     def test_run_case_raises_when_task_never_reaches_done_status(self) -> None:
-        client = _FailureFlowClient()
-        workflow = DemoSeedWorkflow(client)
+        workflow = DemoSeedWorkflow(_PollingFlowClient())
         case = build_demo_plan().cases[0]
 
-        with self.assertRaisesRegex(AssertionError, "did not reach done status"):
-            workflow.run_case(case, brigade_id=7)
+        with patch.object(workflow, "wait_for_task_done", return_value={"ID": 61, "Status": 2}):
+            with self.assertRaisesRegex(AssertionError, "did not reach done status"):
+                workflow.run_case(case, brigade_id=7)
+
+    def test_wait_for_task_done_polls_until_done_status(self) -> None:
+        client = _TaskStatusClient([1, 2, 3])
+        workflow = DemoSeedWorkflow(client)
+
+        task = workflow.wait_for_task_done(61)
+
+        self.assertEqual(3, task["Status"])
+        self.assertEqual(
+            [
+                "/api/task-service/tasks/61",
+                "/api/task-service/tasks/61",
+                "/api/task-service/tasks/61",
+            ],
+            [path for _, path, _ in client.calls],
+        )
 
 
 class _FlowClient:
@@ -251,39 +267,19 @@ class _PollingFlowClient(_FlowClient):
         raise AssertionError(f"unexpected path {path}")
 
 
-class _FailureFlowClient(_FlowClient):
-    def __init__(self) -> None:
+class _TaskStatusClient(_FlowClient):
+    def __init__(self, statuses: list[int]) -> None:
         super().__init__()
-        self._inspection_calls = 0
-        self._task_done_calls = 0
+        self.statuses = statuses
+        self.index = 0
 
     def request_json(self, method: str, path: str, payload=None):
         self.calls.append((method, path, payload))
 
-        if path == "/api/subscriber-service/subscribers":
-            return {"ID": 11}
-        if path == "/api/subscriber-service/objects":
-            return {"ID": 21, "Devices": [{"ID": 31, "Seals": [{"ID": 41}, {"ID": 42}]}]}
-        if path == "/api/subscriber-service/contracts":
-            return {"ID": 51}
-        if path == "/api/task-service/tasks":
-            return {"ID": 61, "Status": 1}
-        if path == "/api/task-service/tasks/assign":
-            return {"ID": 61, "BrigadeID": 7, "Status": 1}
-        if path == "/api/task-service/tasks/61/start":
-            return {"ID": 61, "BrigadeID": 7, "Status": 2}
-        if path == "/api/inspection-service/inspections/task/61":
-            self._inspection_calls += 1
-            if self._inspection_calls == 1:
-                return None
-            return {"ID": 71, "TaskID": 61, "Status": 1}
-        if path == "/api/inspection-service/inspections/71/finish":
-            return {"ID": 901, "FileName": "акт.docx"}
         if path == "/api/task-service/tasks/61":
-            self._task_done_calls += 1
-            if self._task_done_calls == 1:
-                return None
-            return {"ID": 61, "Status": 2}
+            status = self.statuses[self.index]
+            self.index += 1
+            return {"ID": 61, "Status": status}
 
         raise AssertionError(f"unexpected path {path}")
 

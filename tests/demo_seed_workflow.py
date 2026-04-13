@@ -173,7 +173,7 @@ class DemoSeedWorkflow:
     def wait_for_task_done(self, task_id: int):
         return poll_until(
             lambda: self.client.request_json("GET", f"/api/task-service/tasks/{task_id}"),
-            lambda value: value is not None,
+            lambda value: value is not None and value["Status"] == 3,
             timeout_seconds=30.0,
         )
 
