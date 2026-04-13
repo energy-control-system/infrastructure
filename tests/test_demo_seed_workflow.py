@@ -2,6 +2,7 @@ import unittest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
+from tests.demo_seed_client import ApiError
 from tests.demo_seed_data import build_demo_plan
 from tests.demo_seed_workflow import CaseRunResult, DemoSeedWorkflow
 
@@ -104,6 +105,24 @@ class DemoSeedWorkflowTests(unittest.TestCase):
         self.assertEqual("2026-04-14", period_end)
         mock_datetime.now.assert_called_once_with(MOSCOW)
 
+    def test_assert_stack_ready_retries_transient_api_errors(self) -> None:
+        client = _StackReadyClient()
+        workflow = DemoSeedWorkflow(client)
+
+        workflow.assert_stack_ready()
+
+        self.assertEqual(
+            [
+                "/api/brigade-service/brigades",
+                "/api/brigade-service/brigades",
+                "/api/subscriber-service/subscribers",
+                "/api/task-service/tasks",
+                "/api/inspection-service/inspections",
+                "/api/analytics-service/reports",
+            ],
+            [path for _, path, _ in client.calls],
+        )
+
     def test_run_case_executes_api_flow_in_order(self) -> None:
         client = _PollingFlowClient()
         workflow = DemoSeedWorkflow(client)
@@ -200,6 +219,46 @@ class DemoSeedWorkflowTests(unittest.TestCase):
             [path for _, path, _ in client.calls],
         )
 
+    def test_run_full_demo_retries_report_creation_until_analytics_is_ready(self) -> None:
+        client = _ReportRetryClient()
+        workflow = DemoSeedWorkflow(client)
+        plan = build_demo_plan(case_count=2)
+        results = [
+            CaseRunResult(
+                brigade_id=1,
+                subscriber_id=11,
+                object_id=21,
+                contract_id=31,
+                task_id=41,
+                inspection_id=51,
+            ),
+            CaseRunResult(
+                brigade_id=2,
+                subscriber_id=12,
+                object_id=22,
+                contract_id=32,
+                task_id=42,
+                inspection_id=52,
+            ),
+        ]
+
+        with patch.object(workflow, "create_brigades", return_value=[{"ID": 1}, {"ID": 2}, {"ID": 3}]):
+            with patch.object(workflow, "run_case", side_effect=results):
+                summary = workflow.run_full_demo(plan)
+
+        self.assertIn("Completed Cases: 2", summary)
+        self.assertIn("Report ID: 801", summary)
+        self.assertEqual(
+            2,
+            len(
+                [
+                    path
+                    for method, path, _ in client.calls
+                    if method == "POST" and path.startswith("/api/analytics-service/reports/basic/")
+                ]
+            ),
+        )
+
 
 class _FlowClient:
     def __init__(self) -> None:
@@ -280,6 +339,74 @@ class _TaskStatusClient(_FlowClient):
             status = self.statuses[self.index]
             self.index += 1
             return {"ID": 61, "Status": status}
+
+        raise AssertionError(f"unexpected path {path}")
+
+
+class _StackReadyClient:
+    def __init__(self) -> None:
+        self.calls = []
+        self.remaining_failures = {"/api/brigade-service/brigades": 1}
+
+    def request_json(self, method: str, path: str, payload=None):
+        self.calls.append((method, path, payload))
+
+        if path in self.remaining_failures and self.remaining_failures[path] > 0:
+            self.remaining_failures[path] -= 1
+            raise ApiError(
+                f"{method} {path} returned 502",
+                method=method,
+                path=path,
+                status=502,
+                payload={"error": "bad gateway"},
+            )
+
+        if path in {
+            "/api/brigade-service/brigades",
+            "/api/subscriber-service/subscribers",
+            "/api/task-service/tasks",
+            "/api/inspection-service/inspections",
+            "/api/analytics-service/reports",
+        }:
+            return []
+
+        raise AssertionError(f"unexpected path {path}")
+
+
+class _ReportRetryClient(_StackReadyClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.remaining_failures = {}
+        self.report_attempts = 0
+
+    def request_json(self, method: str, path: str, payload=None):
+        self.calls.append((method, path, payload))
+
+        if method == "POST" and path.startswith("/api/analytics-service/reports/basic/"):
+            self.report_attempts += 1
+            if self.report_attempts == 1:
+                raise ApiError(
+                    f"{method} {path} returned 500",
+                    method=method,
+                    path=path,
+                    status=500,
+                    payload={"error": "no finished tasks found"},
+                )
+
+            return {"ID": 801, "Files": [{"ID": 901}]}
+
+        if path == "/api/analytics-service/reports":
+            if self.report_attempts < 2:
+                return []
+            return [{"ID": 801, "Files": [{"ID": 901}]}]
+
+        if path in {
+            "/api/brigade-service/brigades",
+            "/api/subscriber-service/subscribers",
+            "/api/task-service/tasks",
+            "/api/inspection-service/inspections",
+        }:
+            return []
 
         raise AssertionError(f"unexpected path {path}")
 
