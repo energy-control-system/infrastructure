@@ -104,6 +104,14 @@ class DemoSeedDataTests(unittest.TestCase):
                 self.assertRegex(case.subscriber.passport_number, r"^\d{6}$")
                 self.assertRegex(case.subscriber.passport_issue_date, r"^\d{4}-\d{2}-\d{2}$")
 
+    def test_build_demo_plan_matches_object_reference_data(self) -> None:
+        plan = build_demo_plan()
+
+        for case in plan.cases:
+            with self.subTest(address=case.object_data.address):
+                self.assertIn(case.object_data.device_place_type, (1, 2, 3))
+                self.assertEqual(2, len(case.object_data.seal_numbers))
+
 
 if __name__ == "__main__":
     unittest.main()
