@@ -102,7 +102,7 @@ class DemoSeedDataTests(unittest.TestCase):
                 self.assertRegex(case.subscriber.birth_date, r"^\d{4}-\d{2}-\d{2}$")
                 self.assertRegex(case.subscriber.passport_series, r"^\d{4}$")
                 self.assertRegex(case.subscriber.passport_number, r"^\d{6}$")
-                self.assertRegex(case.subscriber.passport_issue_date, r"^\d{2}\.\d{2}\.\d{4}$")
+                self.assertRegex(case.subscriber.passport_issue_date, r"^\d{4}-\d{2}-\d{2}$")
 
 
 if __name__ == "__main__":
