@@ -91,6 +91,21 @@ services:
     networks:
       - backend
 
+  kafka-topics-init:
+    image: apache/kafka:4.1.0
+    container_name: kafka-topics-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: >
+      sh -ec "
+      until /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9093 --list >/dev/null 2>&1; do sleep 2; done &&
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9093 --create --if-not-exists --topic tasks-topic --partitions 1 --replication-factor 1 &&
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9093 --create --if-not-exists --topic inspections-topic --partitions 1 --replication-factor 1
+      "
+    networks:
+      - backend
+
   clickhouse:
     image: clickhouse/clickhouse-server:25.3
     container_name: clickhouse
@@ -327,6 +342,8 @@ services:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
+      kafka-topics-init:
+        condition: service_completed_successfully
     networks:
       - backend
 
@@ -346,6 +363,8 @@ services:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
+      kafka-topics-init:
+        condition: service_completed_successfully
     networks:
       - backend
 
@@ -369,6 +388,8 @@ services:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
+      kafka-topics-init:
+        condition: service_completed_successfully
     networks:
       - backend
 
@@ -388,6 +409,8 @@ services:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
+      kafka-topics-init:
+        condition: service_completed_successfully
     networks:
       - backend
 
@@ -407,6 +430,8 @@ services:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
+      kafka-topics-init:
+        condition: service_completed_successfully
     networks:
       - backend
 

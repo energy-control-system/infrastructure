@@ -10,10 +10,11 @@
 2. Поднять стенд:
 
 ```bash
-docker compose -f docker-compose.dev.yml up --build
+docker compose -f docker-compose.dev.yml up --build -d
 ```
 
 3. Убедиться, что `Nginx` отвечает по `http://localhost`.
+4. Дождаться завершения `kafka-topics-init`, который заранее создает `tasks-topic` и `inspections-topic` для Kafka consumers.
 
 ## Run
 
@@ -33,3 +34,13 @@ ENERGO_E2E_RUN_FULL_STACK=1 ENERGO_E2E_BASE_URL=http://localhost uv run python -
 - создаются и завершаются `30` новых задач и проверок;
 - `analytics-service` создает хотя бы один basic report за текущий день;
 - в конце тест печатает краткую сводку с идентификаторами созданных сущностей.
+- типичный live-прогон на локальном стенде занимает около `2` минут.
+
+## Repeat Run
+
+Если нужен повторный прогон на чистом стенде, предварительно сбросить volumes:
+
+```bash
+docker compose -f docker-compose.dev.yml down -v
+docker compose -f docker-compose.dev.yml up --build -d
+```

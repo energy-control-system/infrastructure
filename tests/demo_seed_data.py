@@ -263,7 +263,7 @@ def _build_case(index: int) -> DemoCase:
         have_automaton=index % 2 == 0,
         device_type=DEVICE_TYPES[index % len(DEVICE_TYPES)],
         device_number=f"DEV-{index + 1:05d}",
-        device_place_type=(index % 4) + 1,
+        device_place_type=(index % 3) + 1,
         device_place_description=f"Щит учета №{index + 1}",
         seal_numbers=(f"SEL-{index * 2 + 1:05d}", f"SEL-{index * 2 + 2:05d}"),
     )
