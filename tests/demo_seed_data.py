@@ -208,16 +208,35 @@ OUTCOMES = (
 def build_demo_plan(case_count: int = 30) -> DemoPlan:
     if case_count < 0:
         raise ValueError("case_count must be non-negative")
-    if case_count > len(MIX):
+    if case_count > _supported_case_count():
         raise ValueError("case_count cannot exceed the available demo mix")
 
-    brigades = tuple(
-        BrigadeSeed(label=label, inspector_ids=inspector_ids)
-        for label, inspector_ids in zip(BRIGADE_LABELS, BRIGADE_INSPECTOR_IDS)
-    )
+    brigades = _build_brigades()
 
     cases = tuple(_build_case(index) for index in range(case_count))
     return DemoPlan(brigades=brigades, cases=cases)
+
+
+def _supported_case_count() -> int:
+    return min(
+        len(MIX),
+        len(SURNAMES),
+        len(NAMES),
+        len(PATRONYMICS),
+    )
+
+
+def _build_brigades() -> tuple[BrigadeSeed, ...]:
+    if len(BRIGADE_LABELS) != len(BRIGADE_INSPECTOR_IDS):
+        raise ValueError("brigade labels and inspector ids must stay aligned")
+
+    return tuple(
+        BrigadeSeed(
+            label=BRIGADE_LABELS[index],
+            inspector_ids=BRIGADE_INSPECTOR_IDS[index],
+        )
+        for index in range(len(BRIGADE_LABELS))
+    )
 
 
 def _build_case(index: int) -> DemoCase:

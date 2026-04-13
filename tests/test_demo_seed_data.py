@@ -1,9 +1,40 @@
 import unittest
+from dataclasses import FrozenInstanceError
+from unittest.mock import patch
 
-from tests.demo_seed_data import build_demo_plan
+from tests.demo_seed_data import MIX, build_demo_plan
 
 
 class DemoSeedDataTests(unittest.TestCase):
+    def test_build_demo_plan_supports_reduced_case_count(self) -> None:
+        plan = build_demo_plan(case_count=5)
+
+        self.assertEqual(3, len(plan.brigades))
+        self.assertEqual(5, len(plan.cases))
+
+    def test_build_demo_plan_rejects_invalid_case_count(self) -> None:
+        with self.subTest("negative"):
+            with self.assertRaises(ValueError):
+                build_demo_plan(case_count=-1)
+
+        with self.subTest("over_max_supported"):
+            with self.assertRaises(ValueError):
+                build_demo_plan(case_count=len(MIX) + 1)
+
+    def test_build_demo_plan_rejects_case_count_when_datasets_shrink(self) -> None:
+        with patch("tests.demo_seed_data.SURNAMES", ("Only",)):
+            with self.assertRaises(ValueError):
+                build_demo_plan(case_count=2)
+
+    def test_demo_seed_dataclasses_are_frozen(self) -> None:
+        plan = build_demo_plan(case_count=1)
+
+        with self.assertRaises(FrozenInstanceError):
+            plan.cases = ()
+
+        with self.assertRaises(FrozenInstanceError):
+            plan.brigades[0].label = "Changed"
+
     def test_build_demo_plan_has_expected_shape(self) -> None:
         plan = build_demo_plan()
 
