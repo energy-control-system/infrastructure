@@ -29,7 +29,15 @@ class DemoSeedWorkflow:
     def __init__(self, client) -> None:
         self.client = client
 
-    def poll_transient(self, fetch, is_ready, timeout_seconds: float, interval_seconds: float, timeout_message: str):
+    def poll_transient(
+        self,
+        fetch,
+        is_ready,
+        timeout_seconds: float,
+        interval_seconds: float,
+        timeout_message: str,
+        retry_statuses: tuple[int, ...] = (),
+    ):
         last_error = None
 
         def fetch_or_none():
@@ -38,7 +46,7 @@ class DemoSeedWorkflow:
             try:
                 value = fetch()
             except ApiError as error:
-                if error.status is not None and error.status < 500:
+                if error.status is not None and error.status < 500 and error.status not in retry_statuses:
                     raise
 
                 last_error = error
@@ -261,10 +269,13 @@ class DemoSeedWorkflow:
         return self.build_summary(brigade_ids, results, report["ID"], report_file_id)
 
     def wait_for_inspection(self, task_id: int):
-        return poll_until(
-            lambda: self.client.request_json("GET", f"/api/inspection-service/inspections/task/{task_id}"),
-            lambda value: value is not None,
+        return self.poll_transient(
+            fetch=lambda: self.client.request_json("GET", f"/api/inspection-service/inspections/task/{task_id}"),
+            is_ready=lambda value: value is not None,
             timeout_seconds=30.0,
+            interval_seconds=1.0,
+            timeout_message=f"inspection for task {task_id} did not appear",
+            retry_statuses=(400,),
         )
 
     def wait_for_task_done(self, task_id: int):
