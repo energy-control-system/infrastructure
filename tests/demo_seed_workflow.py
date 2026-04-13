@@ -1,0 +1,155 @@
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
+
+
+MOSCOW = timezone(timedelta(hours=3))
+
+
+@dataclass(frozen=True)
+class CaseRunResult:
+    brigade_id: int
+    subscriber_id: int
+    object_id: int
+    contract_id: int
+    task_id: int
+    inspection_id: int
+
+
+class DemoSeedWorkflow:
+    def __init__(self, client) -> None:
+        self.client = client
+
+    def create_brigades(self, brigades):
+        created = []
+        for brigade in brigades:
+            response = self.client.request_json(
+                "POST",
+                "/api/brigade-service/brigades",
+                {"InspectorIDs": list(brigade.inspector_ids)},
+            )
+            created.append(response)
+        return created
+
+    def build_subscriber_payload(self, case) -> dict:
+        return {
+            "AccountNumber": case.subscriber.account_number,
+            "Surname": case.subscriber.surname,
+            "Name": case.subscriber.name,
+            "Patronymic": case.subscriber.patronymic,
+            "PhoneNumber": case.subscriber.phone_number,
+            "Email": case.subscriber.email,
+            "INN": case.subscriber.inn,
+            "BirthDate": case.subscriber.birth_date,
+            "Passport": {
+                "Series": case.subscriber.passport_series,
+                "Number": case.subscriber.passport_number,
+                "IssuedBy": case.subscriber.passport_issued_by,
+                "IssueDate": case.subscriber.passport_issue_date,
+            },
+        }
+
+    def build_object_payload(self, case) -> dict:
+        return {
+            "Address": case.object_data.address,
+            "HaveAutomaton": case.object_data.have_automaton,
+            "Devices": [
+                {
+                    "Type": case.object_data.device_type,
+                    "Number": case.object_data.device_number,
+                    "PlaceType": case.object_data.device_place_type,
+                    "PlaceDescription": case.object_data.device_place_description,
+                    "Seals": [
+                        {"Number": case.object_data.seal_numbers[0], "Place": "крышка клеммной колодки"},
+                        {"Number": case.object_data.seal_numbers[1], "Place": "вводной автомат"},
+                    ],
+                }
+            ],
+        }
+
+    def build_contract_payload(self, case, subscriber_id: int, object_id: int) -> dict:
+        return {
+            "Number": case.contract_number,
+            "SubscriberID": subscriber_id,
+            "ObjectID": object_id,
+            "SignDate": case.sign_date,
+        }
+
+    def build_task_payload(self, case, object_id: int) -> dict:
+        return {
+            "BrigadeID": None,
+            "ObjectID": object_id,
+            "PlanVisitAt": None,
+            "Comment": case.task_comment,
+        }
+
+    def build_finish_payload(self, case, device_id: int, seal_ids: list[int], energy_action_at: datetime) -> dict:
+        type_map = {
+            "limitation": 1,
+            "resumption": 2,
+            "verification": 3,
+            "unauthorized_connection": 4,
+        }
+        method_map = {
+            "limitation": "Отключение коммутационным аппаратом на фасаде здания.",
+            "resumption": "Восстановление схемы электроснабжения в этажном щите.",
+            "verification": "Осмотр прибора учета и проверка схемы подключения.",
+            "unauthorized_connection": "Осмотр прибора учета и проверка схемы подключения.",
+        }
+
+        inspection_kind = case.inspection_kind
+        is_verification = inspection_kind == "verification"
+        is_unauthorized = inspection_kind == "unauthorized_connection"
+
+        payload = {
+            "Type": type_map[inspection_kind],
+            "Resolution": 1,
+            "LimitReason": None,
+            "Method": method_map[inspection_kind],
+            "MethodBy": 2,
+            "ReasonType": 3,
+            "ReasonDescription": None,
+            "IsRestrictionChecked": is_verification or is_unauthorized,
+            "IsViolationDetected": is_verification or is_unauthorized,
+            "IsExpenseAvailable": is_verification or is_unauthorized,
+            "ViolationDescription": (
+                "После введенного ограничения зафиксирован расход электроэнергии."
+                if is_verification
+                else None
+            ),
+            "IsUnauthorizedConsumers": is_unauthorized,
+            "UnauthorizedDescription": (
+                "Обнаружено самовольное подключение вводного кабеля в обход прибора учета."
+                if is_unauthorized
+                else None
+            ),
+            "UnauthorizedExplanation": (
+                "Абонент пояснил, что подключение выполнено без согласования."
+                if is_unauthorized
+                else None
+            ),
+            "EnergyActionAt": energy_action_at.isoformat(),
+            "InspectedDevices": [
+                {
+                    "DeviceID": device_id,
+                    "Value": "1542.40",
+                    "Consumption": "18.50",
+                    "InspectedSeals": [
+                        {"SealID": seal_ids[0], "IsBroken": is_verification or is_unauthorized},
+                        {"SealID": seal_ids[1], "IsBroken": False},
+                    ],
+                }
+            ],
+        }
+
+        if inspection_kind == "resumption":
+            payload["ReasonType"] = 2
+
+        if inspection_kind == "unauthorized_connection":
+            payload["ReasonType"] = 3
+
+        return payload
+
+    def report_period(self) -> tuple[str, str]:
+        period_start = date.today().isoformat()
+        period_end = (date.today() + timedelta(days=1)).isoformat()
+        return period_start, period_end
