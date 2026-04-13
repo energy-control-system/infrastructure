@@ -219,6 +219,21 @@ class DemoSeedWorkflowTests(unittest.TestCase):
             [path for _, path, _ in client.calls],
         )
 
+    def test_wait_for_inspection_retries_transient_api_error(self) -> None:
+        client = _InspectionApiErrorClient()
+        workflow = DemoSeedWorkflow(client)
+
+        inspection = workflow.wait_for_inspection(61)
+
+        self.assertEqual(71, inspection["ID"])
+        self.assertEqual(
+            [
+                "/api/inspection-service/inspections/task/61",
+                "/api/inspection-service/inspections/task/61",
+            ],
+            [path for _, path, _ in client.calls],
+        )
+
     def test_run_full_demo_retries_report_creation_until_analytics_is_ready(self) -> None:
         client = _ReportRetryClient()
         workflow = DemoSeedWorkflow(client)
@@ -339,6 +354,30 @@ class _TaskStatusClient(_FlowClient):
             status = self.statuses[self.index]
             self.index += 1
             return {"ID": 61, "Status": status}
+
+        raise AssertionError(f"unexpected path {path}")
+
+
+class _InspectionApiErrorClient(_FlowClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls_count = 0
+
+    def request_json(self, method: str, path: str, payload=None):
+        self.calls.append((method, path, payload))
+
+        if path == "/api/inspection-service/inspections/task/61":
+            self.calls_count += 1
+            if self.calls_count == 1:
+                raise ApiError(
+                    f"{method} {path} returned 400",
+                    method=method,
+                    path=path,
+                    status=400,
+                    payload=None,
+                )
+
+            return {"ID": 71, "TaskID": 61, "Status": 1}
 
         raise AssertionError(f"unexpected path {path}")
 
