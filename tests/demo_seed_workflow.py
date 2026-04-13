@@ -160,3 +160,83 @@ class DemoSeedWorkflow:
         period_start = current.date().isoformat()
         period_end = (current + timedelta(days=1)).date().isoformat()
         return period_start, period_end
+
+    def wait_for_inspection(self, task_id: int):
+        return self.client.request_json("GET", f"/api/inspection-service/inspections/task/{task_id}")
+
+    def wait_for_task_done(self, task_id: int):
+        return self.client.request_json("GET", f"/api/task-service/tasks/{task_id}")
+
+    def run_case(self, case, brigade_id: int) -> CaseRunResult:
+        subscriber = self.client.request_json(
+            "POST",
+            "/api/subscriber-service/subscribers",
+            self.build_subscriber_payload(case),
+        )
+        obj = self.client.request_json(
+            "POST",
+            "/api/subscriber-service/objects",
+            self.build_object_payload(case),
+        )
+        contract = self.client.request_json(
+            "POST",
+            "/api/subscriber-service/contracts",
+            self.build_contract_payload(case, subscriber["ID"], obj["ID"]),
+        )
+        task = self.client.request_json(
+            "POST",
+            "/api/task-service/tasks",
+            self.build_task_payload(case, obj["ID"]),
+        )
+        self.client.request_json(
+            "PATCH",
+            "/api/task-service/tasks/assign",
+            {"TaskID": task["ID"], "BrigadeID": brigade_id},
+        )
+        started_task = self.client.request_json(
+            "PATCH",
+            f"/api/task-service/tasks/{task['ID']}/start",
+        )
+
+        inspection = self.wait_for_inspection(started_task["ID"])
+
+        device = obj["Devices"][0]
+        finish_payload = self.build_finish_payload(
+            case,
+            device_id=device["ID"],
+            seal_ids=[seal["ID"] for seal in device["Seals"]],
+            energy_action_at=datetime.now(MOSCOW),
+        )
+        self.client.request_json(
+            "PATCH",
+            f"/api/inspection-service/inspections/{inspection['ID']}/finish",
+            finish_payload,
+        )
+        done_task = self.wait_for_task_done(task["ID"])
+
+        if done_task["Status"] != 3:
+            raise AssertionError(f"task {task['ID']} did not reach done status: {done_task}")
+
+        return CaseRunResult(
+            brigade_id=brigade_id,
+            subscriber_id=subscriber["ID"],
+            object_id=obj["ID"],
+            contract_id=contract["ID"],
+            task_id=task["ID"],
+            inspection_id=inspection["ID"],
+        )
+
+    def build_summary(self, brigade_ids: list[int], results: list[CaseRunResult], report_id: int, report_file_id: int) -> str:
+        completed_tasks = ", ".join(str(result.task_id) for result in results[:10])
+        if len(results) > 10:
+            completed_tasks = f"{completed_tasks}, ..."
+
+        return "\n".join(
+            [
+                f"Brigades: {', '.join(str(item) for item in brigade_ids)}",
+                f"Completed Cases: {len(results)}",
+                f"Sample Task IDs: {completed_tasks or 'none'}",
+                f"Report ID: {report_id}",
+                f"Report File ID: {report_file_id}",
+            ]
+        )

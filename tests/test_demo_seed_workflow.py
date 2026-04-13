@@ -128,6 +128,19 @@ class DemoSeedWorkflowTests(unittest.TestCase):
             [path for _, path, _ in client.calls],
         )
 
+    def test_build_summary_contains_created_identifiers(self) -> None:
+        workflow = DemoSeedWorkflow(_FlowClient())
+        summary = workflow.build_summary(
+            brigade_ids=[1, 2, 3],
+            results=[],
+            report_id=801,
+            report_file_id=901,
+        )
+
+        self.assertIn("Brigades: 1, 2, 3", summary)
+        self.assertIn("Report ID: 801", summary)
+        self.assertIn("Report File ID: 901", summary)
+
 
 class _FlowClient:
     def __init__(self) -> None:
