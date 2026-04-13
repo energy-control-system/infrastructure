@@ -21,6 +21,13 @@ class DemoSeedWorkflow:
     def __init__(self, client) -> None:
         self.client = client
 
+    def assert_stack_ready(self) -> None:
+        self.client.request_json("GET", "/api/brigade-service/brigades")
+        self.client.request_json("GET", "/api/subscriber-service/subscribers")
+        self.client.request_json("GET", "/api/task-service/tasks")
+        self.client.request_json("GET", "/api/inspection-service/inspections")
+        self.client.request_json("GET", "/api/analytics-service/reports")
+
     def create_brigades(self, brigades):
         created = []
         for brigade in brigades:
@@ -162,6 +169,42 @@ class DemoSeedWorkflow:
         period_start = current.date().isoformat()
         period_end = (current + timedelta(days=1)).date().isoformat()
         return period_start, period_end
+
+    def create_basic_report(self):
+        period_start, period_end = self.report_period()
+        return self.client.request_json(
+            "POST",
+            f"/api/analytics-service/reports/basic/{period_start}/{period_end}",
+        )
+
+    def list_reports(self):
+        return self.client.request_json("GET", "/api/analytics-service/reports")
+
+    def run_full_demo(self, plan) -> str:
+        self.assert_stack_ready()
+
+        created_brigades = self.create_brigades(plan.brigades)
+        brigade_ids = [item["ID"] for item in created_brigades]
+
+        results = []
+        for case in plan.cases:
+            brigade_id = brigade_ids[case.brigade_slot]
+            results.append(self.run_case(case, brigade_id=brigade_id))
+
+        report = poll_until(
+            fetch=self.create_basic_report,
+            is_ready=lambda value: isinstance(value, dict) and "ID" in value and value.get("Files"),
+            timeout_seconds=60.0,
+            interval_seconds=2.0,
+        )
+
+        reports = self.list_reports()
+        report_ids = [item["ID"] for item in reports]
+        if report["ID"] not in report_ids:
+            raise AssertionError(f"report {report['ID']} not found in GET /reports")
+
+        report_file_id = report["Files"][0]["ID"]
+        return self.build_summary(brigade_ids, results, report["ID"], report_file_id)
 
     def wait_for_inspection(self, task_id: int):
         return poll_until(
