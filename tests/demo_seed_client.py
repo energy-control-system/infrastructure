@@ -1,11 +1,21 @@
 import json
 import time
+import urllib.error
 import urllib.request
 
 
 class ApiError(RuntimeError):
-    def __init__(self, message: str, status: int | None = None, payload: object | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        method: str | None = None,
+        path: str | None = None,
+        status: int | None = None,
+        payload: object | None = None,
+    ) -> None:
         super().__init__(message)
+        self.method = method
+        self.path = path
         self.status = status
         self.payload = payload
 
@@ -18,16 +28,25 @@ class ApiClient:
     def request_json(self, method: str, path: str, payload: dict | None = None) -> dict | list:
         url = f"{self.base_url}{path}"
         data = None if payload is None else json.dumps(payload).encode("utf-8")
-        headers = {"Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json"} if payload is not None else {}
         request = urllib.request.Request(url, data=data, method=method.upper(), headers=headers)
 
-        with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-            body = response.read()
-            decoded = json.loads(body.decode("utf-8"))
-            status = response.status if hasattr(response, "status") else response.getcode()
-            if status >= 400:
-                raise ApiError(f"request failed with status {status}", status=status, payload=decoded)
-            return decoded
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            try:
+                body = error.read().decode("utf-8")
+                payload_data = json.loads(body) if body.strip() else None
+                raise ApiError(
+                    f"{method.upper()} {path} returned {error.code}",
+                    method=method.upper(),
+                    path=path,
+                    status=error.code,
+                    payload=payload_data,
+                ) from error
+            finally:
+                error.close()
 
 
 def poll_until(fetch, is_ready, timeout_seconds: float, interval_seconds: float = 1.0, on_timeout=None):
