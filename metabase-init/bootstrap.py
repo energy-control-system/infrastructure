@@ -11,6 +11,9 @@ FILTERS = {
     "brigade_id": {"label": "Бригада", "type": "number", "parameter_id": "filter-brigade"},
     "subscriber_status": {"label": "Статус абонента", "type": "text", "parameter_id": "filter-subscriber-status"},
     "automaton_state": {"label": "Наличие автомата", "type": "text", "parameter_id": "filter-automaton-state"},
+    "subscriber_id": {"label": "Абонент", "type": "number", "parameter_id": "filter-subscriber"},
+    "district_name": {"label": "Район", "type": "text", "parameter_id": "filter-district"},
+    "anomaly_reason": {"label": "Причина аномалии", "type": "text", "parameter_id": "filter-anomaly-reason"},
 }
 
 
@@ -493,6 +496,181 @@ order by last_task_day desc, total_tasks_count desc
             },
             "parameter_mappings": build_parameter_mappings(["period", "subscriber_status", "automaton_state"]),
         },
+        {
+            "name": "Всего аномалий потребления",
+            "display": "scalar",
+            "dataset_query": {
+                "database": database_id,
+                "type": "native",
+                "native": build_native_query(
+                    """
+select count() as "Всего аномалий потребления"
+from v_bi_consumption_anomalies
+where 1 = 1
+[[and month >= {{period}}]]
+[[and subscriber_id = {{subscriber_id}}]]
+[[and anomaly_reason = {{anomaly_reason}}]]
+[[and district_name = {{district_name}}]]
+""",
+                    ["period", "subscriber_id", "anomaly_reason", "district_name"],
+                ),
+            },
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_id", "anomaly_reason", "district_name"]),
+        },
+        {
+            "name": "Абоненты с аномалиями потребления",
+            "display": "scalar",
+            "dataset_query": {
+                "database": database_id,
+                "type": "native",
+                "native": build_native_query(
+                    """
+select countDistinct(subscriber_id) as "Абоненты с аномалиями"
+from v_bi_consumption_anomalies
+where 1 = 1
+[[and month >= {{period}}]]
+[[and subscriber_id = {{subscriber_id}}]]
+[[and anomaly_reason = {{anomaly_reason}}]]
+[[and district_name = {{district_name}}]]
+""",
+                    ["period", "subscriber_id", "anomaly_reason", "district_name"],
+                ),
+            },
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_id", "anomaly_reason", "district_name"]),
+        },
+        {
+            "name": "Динамика аномалий потребления по месяцам",
+            "display": "line",
+            "dataset_query": {
+                "database": database_id,
+                "type": "native",
+                "native": build_native_query(
+                    """
+select
+  month as "Месяц",
+  count() as "Аномалии"
+from v_bi_consumption_anomalies
+where 1 = 1
+[[and month >= {{period}}]]
+[[and subscriber_id = {{subscriber_id}}]]
+[[and anomaly_reason = {{anomaly_reason}}]]
+[[and district_name = {{district_name}}]]
+group by month
+order by month
+""",
+                    ["period", "subscriber_id", "anomaly_reason", "district_name"],
+                ),
+            },
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_id", "anomaly_reason", "district_name"]),
+        },
+        {
+            "name": "Причины аномалий потребления",
+            "display": "bar",
+            "dataset_query": {
+                "database": database_id,
+                "type": "native",
+                "native": build_native_query(
+                    """
+select
+  anomaly_reason as "Причина",
+  count() as "Количество"
+from v_bi_consumption_anomalies
+where 1 = 1
+[[and month >= {{period}}]]
+[[and subscriber_id = {{subscriber_id}}]]
+[[and district_name = {{district_name}}]]
+group by anomaly_reason
+order by "Количество" desc
+""",
+                    ["period", "subscriber_id", "district_name"],
+                ),
+            },
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_id", "district_name"]),
+        },
+        {
+            "name": "Последние аномалии потребления",
+            "display": "table",
+            "dataset_query": {
+                "database": database_id,
+                "type": "native",
+                "native": build_native_query(
+                    """
+select
+  month as "Месяц",
+  subscriber_account_number as "Лицевой счет",
+  subscriber_full_name as "Абонент",
+  district_name as "Район",
+  object_address as "Адрес",
+  monthly_consumption_kwh as "Расход, кВтч",
+  subscriber_avg_consumption_kwh as "Среднее абонента, кВтч",
+  district_avg_consumption_kwh as "Среднее района, кВтч",
+  subscriber_deviation_percent as "Отклонение от истории, %",
+  district_deviation_percent as "Отклонение от района, %",
+  anomaly_reason as "Причина"
+from v_bi_consumption_anomalies
+where 1 = 1
+[[and month >= {{period}}]]
+[[and subscriber_id = {{subscriber_id}}]]
+[[and anomaly_reason = {{anomaly_reason}}]]
+[[and district_name = {{district_name}}]]
+order by month desc, severity_score desc
+limit 50
+""",
+                    ["period", "subscriber_id", "anomaly_reason", "district_name"],
+                ),
+            },
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_id", "anomaly_reason", "district_name"]),
+        },
+        {
+            "name": "Помесячное потребление абонентов",
+            "display": "line",
+            "dataset_query": {
+                "database": database_id,
+                "type": "native",
+                "native": build_native_query(
+                    """
+select
+  month as "Месяц",
+  subscriber_account_number as "Лицевой счет",
+  monthly_consumption_kwh as "Расход, кВтч"
+from v_bi_consumption_monthly
+where 1 = 1
+[[and month >= {{period}}]]
+[[and subscriber_id = {{subscriber_id}}]]
+[[and district_name = {{district_name}}]]
+order by month, subscriber_account_number
+""",
+                    ["period", "subscriber_id", "district_name"],
+                ),
+            },
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_id", "district_name"]),
+        },
+        {
+            "name": "Отклонение от среднего по району",
+            "display": "bar",
+            "dataset_query": {
+                "database": database_id,
+                "type": "native",
+                "native": build_native_query(
+                    """
+select
+  concat(subscriber_account_number, ' ', district_name) as "Абонент / район",
+  monthly_consumption_kwh as "Расход, кВтч",
+  district_avg_consumption_kwh as "Среднее района, кВтч"
+from v_bi_consumption_anomalies
+where 1 = 1
+[[and month >= {{period}}]]
+[[and subscriber_id = {{subscriber_id}}]]
+[[and anomaly_reason = {{anomaly_reason}}]]
+[[and district_name = {{district_name}}]]
+order by severity_score desc
+limit 30
+""",
+                    ["period", "subscriber_id", "anomaly_reason", "district_name"],
+                ),
+            },
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_id", "anomaly_reason", "district_name"]),
+        },
     ]
 
 
@@ -502,6 +680,13 @@ def dashboard_parameters(dashboard_name: str):
             {"id": "filter-period", "name": "Период", "slug": "period", "type": "date/single"},
             {"id": "filter-inspection-type", "name": "Тип проверки", "slug": "inspection_type", "type": "string/="},
             {"id": "filter-brigade", "name": "Бригада", "slug": "brigade_id", "type": "number/="},
+        ]
+    if dashboard_name == "Аномалии потребления":
+        return [
+            {"id": "filter-period", "name": "Период", "slug": "period", "type": "date/single"},
+            {"id": "filter-subscriber", "name": "Абонент", "slug": "subscriber_id", "type": "number/="},
+            {"id": "filter-district", "name": "Район", "slug": "district_name", "type": "string/="},
+            {"id": "filter-anomaly-reason", "name": "Причина аномалии", "slug": "anomaly_reason", "type": "string/="},
         ]
     return [
         {"id": "filter-period", "name": "Период", "slug": "period", "type": "date/single"},
@@ -529,6 +714,15 @@ CARD_LAYOUTS = {
         ("Статусы абонентов по типам проверок", 6, 0, 12, 8, ["period", "inspection_type", "subscriber_status"]),
         ("Таблица объектов и абонентов", 6, 12, 12, 8, ["period", "subscriber_status", "automaton_state"]),
     ],
+    "Аномалии потребления": [
+        ("Всего аномалий потребления", 0, 0, 6, 3, ["period", "subscriber_id", "anomaly_reason", "district_name"]),
+        ("Абоненты с аномалиями потребления", 0, 6, 6, 3, ["period", "subscriber_id", "anomaly_reason", "district_name"]),
+        ("Динамика аномалий потребления по месяцам", 3, 0, 12, 6, ["period", "subscriber_id", "anomaly_reason", "district_name"]),
+        ("Причины аномалий потребления", 3, 12, 12, 6, ["period", "subscriber_id", "district_name"]),
+        ("Последние аномалии потребления", 9, 0, 24, 8, ["period", "subscriber_id", "anomaly_reason", "district_name"]),
+        ("Помесячное потребление абонентов", 17, 0, 12, 7, ["period", "subscriber_id", "district_name"]),
+        ("Отклонение от среднего по району", 17, 12, 12, 7, ["period", "subscriber_id", "anomaly_reason", "district_name"]),
+    ],
 }
 
 
@@ -548,14 +742,15 @@ def build_dashboard_specs(cards_by_name):
                     "parameter_mappings": build_parameter_mappings(tag_names),
                 }
             )
+        descriptions = {
+            "Обзор операций": "Ключевые показатели выполнения проверок и эффективности бригад.",
+            "Абоненты и объекты": "Срезы по статусам абонентов, объектам и адресам проверок.",
+            "Аномалии потребления": "Отклонения месячного потребления от истории абонента и средних значений по району.",
+        }
         specs.append(
             {
                 "name": dashboard_name,
-                "description": (
-                    "Ключевые показатели выполнения проверок и эффективности бригад."
-                    if dashboard_name == "Обзор операций"
-                    else "Срезы по статусам абонентов, объектам и адресам проверок."
-                ),
+                "description": descriptions[dashboard_name],
                 "parameters": dashboard_parameters(dashboard_name),
                 "cards": cards,
             }

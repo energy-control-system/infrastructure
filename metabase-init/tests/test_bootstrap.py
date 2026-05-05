@@ -235,6 +235,13 @@ class BootstrapSpecTests(unittest.TestCase):
                 "Наиболее частые адреса проверок",
                 "Статусы абонентов по типам проверок",
                 "Таблица объектов и абонентов",
+                "Всего аномалий потребления",
+                "Абоненты с аномалиями потребления",
+                "Динамика аномалий потребления по месяцам",
+                "Причины аномалий потребления",
+                "Последние аномалии потребления",
+                "Помесячное потребление абонентов",
+                "Отклонение от среднего по району",
             ],
         )
         sql_text = "\n".join(item["dataset_query"]["native"]["query"] for item in specs)
@@ -265,6 +272,13 @@ class BootstrapSpecTests(unittest.TestCase):
             "Наиболее частые адреса проверок": {"period"},
             "Статусы абонентов по типам проверок": {"period", "inspection_type", "subscriber_status"},
             "Таблица объектов и абонентов": {"period", "subscriber_status", "automaton_state"},
+            "Всего аномалий потребления": {"period", "subscriber_id", "anomaly_reason", "district_name"},
+            "Абоненты с аномалиями потребления": {"period", "subscriber_id", "anomaly_reason", "district_name"},
+            "Динамика аномалий потребления по месяцам": {"period", "subscriber_id", "anomaly_reason", "district_name"},
+            "Причины аномалий потребления": {"period", "subscriber_id", "district_name"},
+            "Последние аномалии потребления": {"period", "subscriber_id", "anomaly_reason", "district_name"},
+            "Помесячное потребление абонентов": {"period", "subscriber_id", "district_name"},
+            "Отклонение от среднего по району": {"period", "subscriber_id", "anomaly_reason", "district_name"},
         }
         for name, tag_names in expected_tags.items():
             spec = specs_by_name[name]
@@ -280,6 +294,18 @@ class BootstrapSpecTests(unittest.TestCase):
         self.assertIn(
             "sum(tasks_count) as \"Количество\"",
             specs_by_name["Статусы абонентов по типам проверок"]["dataset_query"]["native"]["query"],
+        )
+        self.assertIn(
+            "v_bi_consumption_anomalies",
+            specs_by_name["Последние аномалии потребления"]["dataset_query"]["native"]["query"],
+        )
+        self.assertIn(
+            "v_bi_consumption_monthly",
+            specs_by_name["Помесячное потребление абонентов"]["dataset_query"]["native"]["query"],
+        )
+        self.assertIn(
+            "monthly_consumption_kwh",
+            specs_by_name["Отклонение от среднего по району"]["dataset_query"]["native"]["query"],
         )
         for spec in specs:
             self.assertTrue(spec["display"])
@@ -302,11 +328,18 @@ class BootstrapSpecTests(unittest.TestCase):
             "Наиболее частые адреса проверок": 11,
             "Статусы абонентов по типам проверок": 12,
             "Таблица объектов и абонентов": 13,
+            "Всего аномалий потребления": 14,
+            "Абоненты с аномалиями потребления": 15,
+            "Динамика аномалий потребления по месяцам": 16,
+            "Причины аномалий потребления": 17,
+            "Последние аномалии потребления": 18,
+            "Помесячное потребление абонентов": 19,
+            "Отклонение от среднего по району": 20,
         }
         specs = bootstrap.build_dashboard_specs(cards_by_name)
         names = [item["name"] for item in specs]
-        self.assertEqual(names, ["Обзор операций", "Абоненты и объекты"])
-        overview, subscribers = specs
+        self.assertEqual(names, ["Обзор операций", "Абоненты и объекты", "Аномалии потребления"])
+        overview, subscribers, anomalies = specs
         self.assertEqual(
             [card["card_name"] for card in overview["cards"]],
             [
@@ -331,11 +364,24 @@ class BootstrapSpecTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            [card["card_id"] for card in overview["cards"] + subscribers["cards"]],
-            list(range(1, 14)),
+            [card["card_name"] for card in anomalies["cards"]],
+            [
+                "Всего аномалий потребления",
+                "Абоненты с аномалиями потребления",
+                "Динамика аномалий потребления по месяцам",
+                "Причины аномалий потребления",
+                "Последние аномалии потребления",
+                "Помесячное потребление абонентов",
+                "Отклонение от среднего по району",
+            ],
+        )
+        self.assertEqual(
+            [card["card_id"] for card in overview["cards"] + subscribers["cards"] + anomalies["cards"]],
+            list(range(1, 21)),
         )
         self.assertTrue(all("row" in card and "col" in card for card in overview["cards"]))
         self.assertTrue(all("size_x" in card and "size_y" in card for card in subscribers["cards"]))
+        self.assertTrue(all("size_x" in card and "size_y" in card for card in anomalies["cards"]))
         self.assertEqual(
             [param["name"] for param in overview["parameters"]],
             ["Период", "Тип проверки", "Бригада"],
@@ -346,6 +392,11 @@ class BootstrapSpecTests(unittest.TestCase):
             ["Период", "Тип проверки", "Статус абонента", "Наличие автомата"],
         )
         self.assertEqual(subscribers["parameters"][0]["type"], "date/single")
+        self.assertEqual(
+            [param["name"] for param in anomalies["parameters"]],
+            ["Период", "Абонент", "Район", "Причина аномалии"],
+        )
+        self.assertEqual(anomalies["parameters"][0]["type"], "date/single")
         for dashboard_spec in specs:
             covered = {
                 mapping["parameter_id"]
@@ -356,7 +407,7 @@ class BootstrapSpecTests(unittest.TestCase):
                 covered.issuperset({param["id"] for param in dashboard_spec["parameters"]}),
                 msg=f"uncovered dashboard filters in {dashboard_spec['name']}",
             )
-        for card in overview["cards"] + subscribers["cards"]:
+        for card in overview["cards"] + subscribers["cards"] + anomalies["cards"]:
             self.assertTrue(card["parameter_mappings"])
             self.assertTrue(all(mapping["target"][0] == "variable" for mapping in card["parameter_mappings"]))
 
@@ -366,7 +417,7 @@ class BootstrapSpecTests(unittest.TestCase):
         bootstrap.run_bootstrap(client)
 
         create_dashboard_calls = [item for item in client.calls if item[0] == "create_dashboard"]
-        self.assertEqual(len(create_dashboard_calls), 2)
+        self.assertEqual(len(create_dashboard_calls), 3)
         self.assertNotIn(("update_dashboard", 900), [(item[0], item[1]) for item in client.calls if item[0] == "update_dashboard"])
 
     def test_run_bootstrap_handles_paginated_lists_and_card_only_lookup(self) -> None:
@@ -453,7 +504,7 @@ class BootstrapSpecTests(unittest.TestCase):
         bootstrap.run_bootstrap(client)
 
         update_dashboard_calls = [item for item in client.calls if item[0] == "update_dashboard"]
-        self.assertEqual(len(update_dashboard_calls), 2)
+        self.assertEqual(len(update_dashboard_calls), 3)
         overview_update = next(call for call in update_dashboard_calls if call[1] == 301)
         dashcards = overview_update[2]["dashcards"]
         self.assertEqual(dashcards[0]["id"], 901)

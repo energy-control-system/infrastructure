@@ -258,8 +258,24 @@ services:
         condition: service_healthy
       kafka-ui:
         condition: service_healthy
+      grafana:
+        condition: service_started
       metabase:
         condition: service_healthy
+      file-service:
+        condition: service_started
+      analyzer-service:
+        condition: service_started
+      task-service:
+        condition: service_started
+      inspection-service:
+        condition: service_started
+      analytics-service:
+        condition: service_started
+      brigade-service:
+        condition: service_started
+      subscriber-service:
+        condition: service_started
     networks:
       - backend
 

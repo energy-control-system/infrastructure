@@ -1,6 +1,7 @@
 import urllib.error
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 from tests.demo_seed_client import ApiError, poll_until
 
@@ -178,6 +179,8 @@ class DemoSeedWorkflow:
         inspection_kind = case.inspection_kind
         is_verification = inspection_kind == "verification"
         is_unauthorized = inspection_kind == "unauthorized_connection"
+        consumption = self.demo_consumption(case)
+        device_value = Decimal("1500.00") + consumption
 
         payload = {
             "Type": type_map[inspection_kind],
@@ -210,8 +213,8 @@ class DemoSeedWorkflow:
             "InspectedDevices": [
                 {
                     "DeviceID": device_id,
-                    "Value": "1542.40",
-                    "Consumption": "18.50",
+                    "Value": f"{device_value:.2f}",
+                    "Consumption": f"{consumption:.2f}",
                     "InspectedSeals": [
                         {"SealID": seal_ids[0], "IsBroken": is_verification or is_unauthorized},
                         {"SealID": seal_ids[1], "IsBroken": False},
@@ -221,6 +224,13 @@ class DemoSeedWorkflow:
         }
 
         return payload
+
+    def demo_consumption(self, case) -> Decimal:
+        case_number = int(case.subscriber.account_number.rsplit("-", 1)[1])
+        if case_number in (1, 12, 23):
+            return Decimal("700.00")
+
+        return Decimal("100.00") + Decimal(((case_number - 1) % 5) * 12)
 
     def report_period(self) -> tuple[str, str]:
         current = datetime.now(MOSCOW)

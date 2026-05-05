@@ -54,6 +54,27 @@ class DemoSeedWorkflowTests(unittest.TestCase):
         self.assertEqual(77, payload["InspectedDevices"][0]["DeviceID"])
         self.assertEqual([501, 502], [item["SealID"] for item in payload["InspectedDevices"][0]["InspectedSeals"]])
 
+    def test_build_finish_payload_adds_demo_consumption_outliers(self) -> None:
+        plan = build_demo_plan()
+        workflow = DemoSeedWorkflow(_FakeClient())
+        energy_action_at = datetime(2026, 4, 13, 10, 30, tzinfo=MOSCOW)
+
+        outlier_payload = workflow.build_finish_payload(
+            plan.cases[0],
+            device_id=77,
+            seal_ids=[501, 502],
+            energy_action_at=energy_action_at,
+        )
+        normal_payload = workflow.build_finish_payload(
+            plan.cases[1],
+            device_id=78,
+            seal_ids=[503, 504],
+            energy_action_at=energy_action_at,
+        )
+
+        self.assertEqual("700.00", outlier_payload["InspectedDevices"][0]["Consumption"])
+        self.assertEqual("112.00", normal_payload["InspectedDevices"][0]["Consumption"])
+
     def test_build_finish_payload_for_resumption(self) -> None:
         plan = build_demo_plan()
         workflow = DemoSeedWorkflow(_FakeClient())

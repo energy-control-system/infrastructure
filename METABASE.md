@@ -8,9 +8,10 @@
 - Образ Metabase зафиксирован на `metabase/metabase:v0.59.6.3`.
 - `clickhouse-db-init`, который создаёт БД `analytics_service` через `clickhouse-client --port 9123` до старта `analytics-service` и bootstrap Metabase.
 - `metabase-init`, который через API делает bootstrap, подключает ClickHouse и создаёт русскую коллекцию `Аналитика энергоконтроля`.
-- Два русских дашборда: `Обзор операций` и `Абоненты и объекты`.
+- Три русских дашборда: `Обзор операций`, `Абоненты и объекты` и `Аномалии потребления`.
 - BI-витрины в ClickHouse, которые читают Metabase-вопросы.
 - Upgrade migration `analytics-service/database/migrations/clickhouse/00003_bi_inspection_results.sql`, которая добавляет `v_bi_inspection_results`.
+- Upgrade migration `analytics-service/database/migrations/clickhouse/00004_consumption_anomaly_views.sql`, которая добавляет показания проверенных приборов в `finished_tasks` и BI-витрины `v_bi_consumption_monthly`, `v_bi_consumption_anomalies`.
 
 ## Dev
 
@@ -46,6 +47,18 @@ MB_SITE_URL=http://localhost:3000/ docker compose -f infrastructure/docker-compo
 - Дашборды:
   - `Обзор операций`
   - `Абоненты и объекты`
+  - `Аномалии потребления`
+
+## Аномалии потребления
+
+Дашборд `Аномалии потребления` строится по фактическим расходам из завершенных проверок. Значения попадают в ClickHouse из `inspection-service.inspected_devices.consumption` через `analytics-service`.
+
+Витрина считает два типа отклонений:
+
+- отклонение месячного расхода абонента от его собственной истории на 50% и больше, если по абоненту накоплено не менее 3 месяцев;
+- превышение среднего значения по району в 2.5 раза и больше.
+
+Район в текущей модели проекта выводится из адреса объекта как часть до первой запятой, например `ул. Ленина` из `ул. Ленина, д. 1, кв. 10`. Если в доменной модели появится отдельное поле района или состава семьи, витрину можно переключить на него без изменения Metabase API-слоя.
 
 ## Prod env
 
