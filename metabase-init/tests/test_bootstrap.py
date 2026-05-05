@@ -272,13 +272,13 @@ class BootstrapSpecTests(unittest.TestCase):
             "Наиболее частые адреса проверок": {"period"},
             "Статусы абонентов по типам проверок": {"period", "inspection_type", "subscriber_status"},
             "Таблица объектов и абонентов": {"period", "subscriber_status", "automaton_state"},
-            "Всего аномалий потребления": {"period", "subscriber_id", "anomaly_reason", "district_name"},
-            "Абоненты с аномалиями потребления": {"period", "subscriber_id", "anomaly_reason", "district_name"},
-            "Динамика аномалий потребления по месяцам": {"period", "subscriber_id", "anomaly_reason", "district_name"},
-            "Причины аномалий потребления": {"period", "subscriber_id", "district_name"},
-            "Последние аномалии потребления": {"period", "subscriber_id", "anomaly_reason", "district_name"},
-            "Помесячное потребление абонентов": {"period", "subscriber_id", "district_name"},
-            "Отклонение от среднего по району": {"period", "subscriber_id", "anomaly_reason", "district_name"},
+            "Всего аномалий потребления": {"period", "subscriber_account_number", "anomaly_reason", "district_name"},
+            "Абоненты с аномалиями потребления": {"period", "subscriber_account_number", "anomaly_reason", "district_name"},
+            "Динамика аномалий потребления по месяцам": {"period", "subscriber_account_number", "anomaly_reason", "district_name"},
+            "Причины аномалий потребления": {"period", "subscriber_account_number", "district_name"},
+            "Последние аномалии потребления": {"period", "subscriber_account_number", "anomaly_reason", "district_name"},
+            "Помесячное потребление абонентов": {"period", "subscriber_account_number", "district_name"},
+            "Отклонение от среднего по району": {"period", "subscriber_account_number", "anomaly_reason", "district_name"},
         }
         for name, tag_names in expected_tags.items():
             spec = specs_by_name[name]
@@ -307,6 +307,17 @@ class BootstrapSpecTests(unittest.TestCase):
             "monthly_consumption_kwh",
             specs_by_name["Отклонение от среднего по району"]["dataset_query"]["native"]["query"],
         )
+        month_label_cards = [
+            "Динамика аномалий потребления по месяцам",
+            "Последние аномалии потребления",
+            "Помесячное потребление абонентов",
+        ]
+        for card_name in month_label_cards:
+            query = specs_by_name[card_name]["dataset_query"]["native"]["query"]
+            self.assertIn('concat(arrayElement([', query)
+            self.assertIn("'Январь', 'Февраль', 'Март'", query)
+            self.assertIn('toString(toYear(month))) as "Месяц"', query)
+            self.assertNotIn('month as "Месяц"', query)
         for spec in specs:
             self.assertTrue(spec["display"])
             self.assertEqual(spec["dataset_query"]["database"], 42)
@@ -394,7 +405,7 @@ class BootstrapSpecTests(unittest.TestCase):
         self.assertEqual(subscribers["parameters"][0]["type"], "date/single")
         self.assertEqual(
             [param["name"] for param in anomalies["parameters"]],
-            ["Период", "Абонент", "Район", "Причина аномалии"],
+            ["Период", "Лицевой счет", "Район", "Причина аномалии"],
         )
         self.assertEqual(anomalies["parameters"][0]["type"], "date/single")
         for dashboard_spec in specs:
@@ -484,7 +495,13 @@ class BootstrapSpecTests(unittest.TestCase):
                     "col": 0,
                     "size_x": 6,
                     "size_y": 3,
-                    "parameter_mappings": bootstrap.build_parameter_mappings(["period"]),
+                    "parameter_mappings": [
+                        {
+                            "card_id": 1,
+                            "parameter_id": "filter-period",
+                            "target": ["variable", ["template-tag", "period"]],
+                        }
+                    ],
                 },
                 {
                     "id": -1,
@@ -493,7 +510,13 @@ class BootstrapSpecTests(unittest.TestCase):
                     "col": 6,
                     "size_x": 6,
                     "size_y": 3,
-                    "parameter_mappings": bootstrap.build_parameter_mappings(["period"]),
+                    "parameter_mappings": [
+                        {
+                            "card_id": 2,
+                            "parameter_id": "filter-period",
+                            "target": ["variable", ["template-tag", "period"]],
+                        }
+                    ],
                 },
             ],
         )
@@ -513,8 +536,12 @@ class BootstrapSpecTests(unittest.TestCase):
         self.assertEqual(dashcards[1]["id"], -1)
         self.assertEqual(dashcards[-1]["id"], -7)
         self.assertTrue(
-            all("card_id" not in mapping for dashcard in dashcards for mapping in dashcard["parameter_mappings"]),
-            msg="dashboard parameter mappings must not be pre-bound to card ids for dashboard PUT payloads",
+            all(
+                mapping["card_id"] == dashcard["card_id"]
+                for dashcard in dashcards
+                for mapping in dashcard["parameter_mappings"]
+            ),
+            msg="dashboard parameter mappings must bind each filter target to the dashcard card_id",
         )
 
     def test_run_bootstrap_updates_existing_database_and_syncs_it(self) -> None:

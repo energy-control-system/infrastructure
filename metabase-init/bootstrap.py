@@ -11,10 +11,16 @@ FILTERS = {
     "brigade_id": {"label": "Бригада", "type": "number", "parameter_id": "filter-brigade"},
     "subscriber_status": {"label": "Статус абонента", "type": "text", "parameter_id": "filter-subscriber-status"},
     "automaton_state": {"label": "Наличие автомата", "type": "text", "parameter_id": "filter-automaton-state"},
-    "subscriber_id": {"label": "Абонент", "type": "number", "parameter_id": "filter-subscriber"},
+    "subscriber_account_number": {"label": "Лицевой счет", "type": "text", "parameter_id": "filter-subscriber"},
     "district_name": {"label": "Район", "type": "text", "parameter_id": "filter-district"},
     "anomaly_reason": {"label": "Причина аномалии", "type": "text", "parameter_id": "filter-anomaly-reason"},
 }
+
+MONTH_LABEL_SQL = (
+    "concat(arrayElement(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', "
+    "'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], toMonth(month)), "
+    "' ', toString(toYear(month)))"
+)
 
 
 def env(name: str, default: str) -> str:
@@ -508,14 +514,14 @@ select count() as "Всего аномалий потребления"
 from v_bi_consumption_anomalies
 where 1 = 1
 [[and month >= {{period}}]]
-[[and subscriber_id = {{subscriber_id}}]]
+[[and subscriber_account_number = {{subscriber_account_number}}]]
 [[and anomaly_reason = {{anomaly_reason}}]]
 [[and district_name = {{district_name}}]]
 """,
-                    ["period", "subscriber_id", "anomaly_reason", "district_name"],
+                    ["period", "subscriber_account_number", "anomaly_reason", "district_name"],
                 ),
             },
-            "parameter_mappings": build_parameter_mappings(["period", "subscriber_id", "anomaly_reason", "district_name"]),
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_account_number", "anomaly_reason", "district_name"]),
         },
         {
             "name": "Абоненты с аномалиями потребления",
@@ -529,14 +535,14 @@ select countDistinct(subscriber_id) as "Абоненты с аномалиями
 from v_bi_consumption_anomalies
 where 1 = 1
 [[and month >= {{period}}]]
-[[and subscriber_id = {{subscriber_id}}]]
+[[and subscriber_account_number = {{subscriber_account_number}}]]
 [[and anomaly_reason = {{anomaly_reason}}]]
 [[and district_name = {{district_name}}]]
 """,
-                    ["period", "subscriber_id", "anomaly_reason", "district_name"],
+                    ["period", "subscriber_account_number", "anomaly_reason", "district_name"],
                 ),
             },
-            "parameter_mappings": build_parameter_mappings(["period", "subscriber_id", "anomaly_reason", "district_name"]),
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_account_number", "anomaly_reason", "district_name"]),
         },
         {
             "name": "Динамика аномалий потребления по месяцам",
@@ -545,23 +551,23 @@ where 1 = 1
                 "database": database_id,
                 "type": "native",
                 "native": build_native_query(
-                    """
+                    f"""
 select
-  month as "Месяц",
+  {MONTH_LABEL_SQL} as "Месяц",
   count() as "Аномалии"
 from v_bi_consumption_anomalies
 where 1 = 1
-[[and month >= {{period}}]]
-[[and subscriber_id = {{subscriber_id}}]]
-[[and anomaly_reason = {{anomaly_reason}}]]
-[[and district_name = {{district_name}}]]
+[[and month >= {{{{period}}}}]]
+[[and subscriber_account_number = {{{{subscriber_account_number}}}}]]
+[[and anomaly_reason = {{{{anomaly_reason}}}}]]
+[[and district_name = {{{{district_name}}}}]]
 group by month
 order by month
 """,
-                    ["period", "subscriber_id", "anomaly_reason", "district_name"],
+                    ["period", "subscriber_account_number", "anomaly_reason", "district_name"],
                 ),
             },
-            "parameter_mappings": build_parameter_mappings(["period", "subscriber_id", "anomaly_reason", "district_name"]),
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_account_number", "anomaly_reason", "district_name"]),
         },
         {
             "name": "Причины аномалий потребления",
@@ -577,15 +583,15 @@ select
 from v_bi_consumption_anomalies
 where 1 = 1
 [[and month >= {{period}}]]
-[[and subscriber_id = {{subscriber_id}}]]
+[[and subscriber_account_number = {{subscriber_account_number}}]]
 [[and district_name = {{district_name}}]]
 group by anomaly_reason
 order by "Количество" desc
 """,
-                    ["period", "subscriber_id", "district_name"],
+                    ["period", "subscriber_account_number", "district_name"],
                 ),
             },
-            "parameter_mappings": build_parameter_mappings(["period", "subscriber_id", "district_name"]),
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_account_number", "district_name"]),
         },
         {
             "name": "Последние аномалии потребления",
@@ -594,9 +600,9 @@ order by "Количество" desc
                 "database": database_id,
                 "type": "native",
                 "native": build_native_query(
-                    """
+                    f"""
 select
-  month as "Месяц",
+  {MONTH_LABEL_SQL} as "Месяц",
   subscriber_account_number as "Лицевой счет",
   subscriber_full_name as "Абонент",
   district_name as "Район",
@@ -609,17 +615,17 @@ select
   anomaly_reason as "Причина"
 from v_bi_consumption_anomalies
 where 1 = 1
-[[and month >= {{period}}]]
-[[and subscriber_id = {{subscriber_id}}]]
-[[and anomaly_reason = {{anomaly_reason}}]]
-[[and district_name = {{district_name}}]]
+[[and month >= {{{{period}}}}]]
+[[and subscriber_account_number = {{{{subscriber_account_number}}}}]]
+[[and anomaly_reason = {{{{anomaly_reason}}}}]]
+[[and district_name = {{{{district_name}}}}]]
 order by month desc, severity_score desc
 limit 50
 """,
-                    ["period", "subscriber_id", "anomaly_reason", "district_name"],
+                    ["period", "subscriber_account_number", "anomaly_reason", "district_name"],
                 ),
             },
-            "parameter_mappings": build_parameter_mappings(["period", "subscriber_id", "anomaly_reason", "district_name"]),
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_account_number", "anomaly_reason", "district_name"]),
         },
         {
             "name": "Помесячное потребление абонентов",
@@ -628,22 +634,22 @@ limit 50
                 "database": database_id,
                 "type": "native",
                 "native": build_native_query(
-                    """
+                    f"""
 select
-  month as "Месяц",
+  {MONTH_LABEL_SQL} as "Месяц",
   subscriber_account_number as "Лицевой счет",
   monthly_consumption_kwh as "Расход, кВтч"
 from v_bi_consumption_monthly
 where 1 = 1
-[[and month >= {{period}}]]
-[[and subscriber_id = {{subscriber_id}}]]
-[[and district_name = {{district_name}}]]
+[[and month >= {{{{period}}}}]]
+[[and subscriber_account_number = {{{{subscriber_account_number}}}}]]
+[[and district_name = {{{{district_name}}}}]]
 order by month, subscriber_account_number
 """,
-                    ["period", "subscriber_id", "district_name"],
+                    ["period", "subscriber_account_number", "district_name"],
                 ),
             },
-            "parameter_mappings": build_parameter_mappings(["period", "subscriber_id", "district_name"]),
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_account_number", "district_name"]),
         },
         {
             "name": "Отклонение от среднего по району",
@@ -660,16 +666,16 @@ select
 from v_bi_consumption_anomalies
 where 1 = 1
 [[and month >= {{period}}]]
-[[and subscriber_id = {{subscriber_id}}]]
+[[and subscriber_account_number = {{subscriber_account_number}}]]
 [[and anomaly_reason = {{anomaly_reason}}]]
 [[and district_name = {{district_name}}]]
 order by severity_score desc
 limit 30
 """,
-                    ["period", "subscriber_id", "anomaly_reason", "district_name"],
+                    ["period", "subscriber_account_number", "anomaly_reason", "district_name"],
                 ),
             },
-            "parameter_mappings": build_parameter_mappings(["period", "subscriber_id", "anomaly_reason", "district_name"]),
+            "parameter_mappings": build_parameter_mappings(["period", "subscriber_account_number", "anomaly_reason", "district_name"]),
         },
     ]
 
@@ -684,7 +690,7 @@ def dashboard_parameters(dashboard_name: str):
     if dashboard_name == "Аномалии потребления":
         return [
             {"id": "filter-period", "name": "Период", "slug": "period", "type": "date/single"},
-            {"id": "filter-subscriber", "name": "Абонент", "slug": "subscriber_id", "type": "number/="},
+            {"id": "filter-subscriber", "name": "Лицевой счет", "slug": "subscriber_account_number", "type": "string/="},
             {"id": "filter-district", "name": "Район", "slug": "district_name", "type": "string/="},
             {"id": "filter-anomaly-reason", "name": "Причина аномалии", "slug": "anomaly_reason", "type": "string/="},
         ]
@@ -715,13 +721,13 @@ CARD_LAYOUTS = {
         ("Таблица объектов и абонентов", 6, 12, 12, 8, ["period", "subscriber_status", "automaton_state"]),
     ],
     "Аномалии потребления": [
-        ("Всего аномалий потребления", 0, 0, 6, 3, ["period", "subscriber_id", "anomaly_reason", "district_name"]),
-        ("Абоненты с аномалиями потребления", 0, 6, 6, 3, ["period", "subscriber_id", "anomaly_reason", "district_name"]),
-        ("Динамика аномалий потребления по месяцам", 3, 0, 12, 6, ["period", "subscriber_id", "anomaly_reason", "district_name"]),
-        ("Причины аномалий потребления", 3, 12, 12, 6, ["period", "subscriber_id", "district_name"]),
-        ("Последние аномалии потребления", 9, 0, 24, 8, ["period", "subscriber_id", "anomaly_reason", "district_name"]),
-        ("Помесячное потребление абонентов", 17, 0, 12, 7, ["period", "subscriber_id", "district_name"]),
-        ("Отклонение от среднего по району", 17, 12, 12, 7, ["period", "subscriber_id", "anomaly_reason", "district_name"]),
+        ("Всего аномалий потребления", 0, 0, 6, 3, ["period", "subscriber_account_number", "anomaly_reason", "district_name"]),
+        ("Абоненты с аномалиями потребления", 0, 6, 6, 3, ["period", "subscriber_account_number", "anomaly_reason", "district_name"]),
+        ("Динамика аномалий потребления по месяцам", 3, 0, 12, 6, ["period", "subscriber_account_number", "anomaly_reason", "district_name"]),
+        ("Причины аномалий потребления", 3, 12, 12, 6, ["period", "subscriber_account_number", "district_name"]),
+        ("Последние аномалии потребления", 9, 0, 24, 8, ["period", "subscriber_account_number", "anomaly_reason", "district_name"]),
+        ("Помесячное потребление абонентов", 17, 0, 12, 7, ["period", "subscriber_account_number", "district_name"]),
+        ("Отклонение от среднего по району", 17, 12, 12, 7, ["period", "subscriber_account_number", "anomaly_reason", "district_name"]),
     ],
 }
 
@@ -807,6 +813,13 @@ def build_dashcards_payload(existing_dashcards, desired_cards):
     next_temporary_id = -1
     for card in desired_cards:
         existing = existing_by_card_id.get(card["card_id"])
+        parameter_mappings = [
+            {
+                **mapping,
+                "card_id": card["card_id"],
+            }
+            for mapping in card["parameter_mappings"]
+        ]
         dashcards.append(
             {
                 "id": existing["id"] if existing is not None else next_temporary_id,
@@ -815,7 +828,7 @@ def build_dashcards_payload(existing_dashcards, desired_cards):
                 "col": card["col"],
                 "size_x": card["size_x"],
                 "size_y": card["size_y"],
-                "parameter_mappings": card["parameter_mappings"],
+                "parameter_mappings": parameter_mappings,
             }
         )
         if existing is None:
