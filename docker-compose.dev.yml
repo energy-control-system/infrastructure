@@ -241,6 +241,30 @@ services:
     networks:
       - backend
 
+  swagger-gateway:
+    image: swagger-gateway:latest
+    container_name: swagger-gateway
+    build:
+      context: ./swagger-gateway
+      dockerfile: Dockerfile
+    depends_on:
+      file-service:
+        condition: service_started
+      analyzer-service:
+        condition: service_started
+      task-service:
+        condition: service_started
+      inspection-service:
+        condition: service_started
+      analytics-service:
+        condition: service_started
+      brigade-service:
+        condition: service_started
+      subscriber-service:
+        condition: service_started
+    networks:
+      - backend
+
   nginx:
     image: nginx:1.29
     tty: true
@@ -264,6 +288,8 @@ services:
         condition: service_started
       metabase:
         condition: service_healthy
+      swagger-gateway:
+        condition: service_started
       file-service:
         condition: service_started
       analyzer-service:

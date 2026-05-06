@@ -198,6 +198,15 @@ services:
     networks:
       - backend
 
+  swagger-gateway:
+    image: swagger-gateway:latest
+    container_name: swagger-gateway
+    build:
+      context: ./swagger-gateway
+      dockerfile: Dockerfile
+    networks:
+      - backend
+
   nginx:
     image: nginx:1.29
     tty: true
@@ -215,6 +224,8 @@ services:
         condition: service_started
       metabase:
         condition: service_healthy
+      swagger-gateway:
+        condition: service_started
     networks:
       - backend
 
