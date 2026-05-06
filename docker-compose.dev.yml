@@ -31,10 +31,11 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1" ]
+      start_period: 60s
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
     networks:
       - backend
 
@@ -85,9 +86,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: nc -z localhost 8070 || exit -1
+      start_period: 60s
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
     networks:
       - backend
 
