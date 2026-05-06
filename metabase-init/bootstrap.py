@@ -361,11 +361,7 @@ order by "Количество" desc
         },
         {
             "name": "Рейтинг бригад по числу выполненных задач",
-            "display": "bar",
-            "visualization_settings": {
-                "graph.dimensions": ["Бригада"],
-                "graph.metrics": ["Количество задач"],
-            },
+            "display": "table",
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
@@ -373,13 +369,27 @@ order by "Количество" desc
                     """
 select
   brigade_id as "Бригада",
-  sum(tasks_count) as "Количество задач"
-from v_bi_brigade_performance
+  arrayStringConcat(
+    arrayMap(
+      inspector -> concat(
+        tupleElement(inspector, 'surname'),
+        ' ',
+        tupleElement(inspector, 'name'),
+        ' ',
+        tupleElement(inspector, 'patronymic')
+      ),
+      any(brigade_inspectors)
+    ),
+    ', '
+  ) as "Участники бригады",
+  count() as "Количество задач"
+from finished_tasks
 where 1 = 1
-[[and day >= {{period}}]]
+[[and finished_at >= {{period}}]]
 [[and brigade_id = {{brigade_id}}]]
 group by brigade_id
 order by "Количество задач" desc
+limit 10
 """,
                     ["period", "brigade_id"],
                 ),

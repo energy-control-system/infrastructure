@@ -247,7 +247,7 @@ class BootstrapSpecTests(unittest.TestCase):
         )
         sql_text = "\n".join(item["dataset_query"]["native"]["query"] for item in specs)
         self.assertIn("v_bi_tasks_daily", sql_text)
-        self.assertIn("v_bi_brigade_performance", sql_text)
+        self.assertIn("finished_tasks", sql_text)
         self.assertIn("v_bi_inspection_results", sql_text)
         self.assertIn("v_bi_subscriber_object_profile", sql_text)
         specs_by_name = {item["name"]: item for item in specs}
@@ -296,13 +296,16 @@ class BootstrapSpecTests(unittest.TestCase):
             "sum(tasks_count) as \"Количество\"",
             specs_by_name["Статусы абонентов по типам проверок"]["dataset_query"]["native"]["query"],
         )
-        self.assertEqual(
-            specs_by_name["Рейтинг бригад по числу выполненных задач"]["visualization_settings"],
-            {
-                "graph.dimensions": ["Бригада"],
-                "graph.metrics": ["Количество задач"],
-            },
-        )
+        brigade_rating = specs_by_name["Рейтинг бригад по числу выполненных задач"]
+        brigade_rating_query = brigade_rating["dataset_query"]["native"]["query"]
+        self.assertEqual(brigade_rating["display"], "table")
+        self.assertIn('arrayStringConcat', brigade_rating_query)
+        self.assertIn('brigade_inspectors', brigade_rating_query)
+        self.assertIn('as "Участники бригады"', brigade_rating_query)
+        self.assertIn('as "Количество задач"', brigade_rating_query)
+        self.assertIn("from finished_tasks", brigade_rating_query)
+        self.assertIn('order by "Количество задач" desc', brigade_rating_query)
+        self.assertIn("limit 10", brigade_rating_query)
         self.assertIn(
             "v_bi_consumption_anomalies",
             specs_by_name["Последние аномалии потребления"]["dataset_query"]["native"]["query"],
@@ -483,14 +486,10 @@ class BootstrapSpecTests(unittest.TestCase):
             },
         )
         brigade_call = next(call for call in create_card_calls if call[1]["name"] == "Рейтинг бригад по числу выполненных задач")
-        self.assertEqual(
-            brigade_call[1]["visualization_settings"],
-            {
-                "graph.dimensions": ["Бригада"],
-                "graph.metrics": ["Количество задач"],
-            },
-        )
-        configured_cards = {"Помесячное потребление абонентов", "Рейтинг бригад по числу выполненных задач"}
+        self.assertEqual(brigade_call[1]["display"], "table")
+        self.assertEqual(brigade_call[1]["visualization_settings"], {})
+        self.assertIn("limit 10", brigade_call[1]["dataset_query"]["native"]["query"])
+        configured_cards = {"Помесячное потребление абонентов"}
         other_calls = [call for call in create_card_calls if call[1]["name"] not in configured_cards]
         self.assertTrue(
             all(call[1]["visualization_settings"] == {} for call in other_calls),
