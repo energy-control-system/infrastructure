@@ -18,6 +18,9 @@
 # Dependency directories
 vendor/
 
+# Python cache directories
+__pycache__/
+
 # Go workspace file
 go.work
 

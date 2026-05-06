@@ -362,6 +362,10 @@ order by "Количество" desc
         {
             "name": "Рейтинг бригад по числу выполненных задач",
             "display": "bar",
+            "visualization_settings": {
+                "graph.dimensions": ["Бригада"],
+                "graph.metrics": ["Количество задач"],
+            },
             "dataset_query": {
                 "database": database_id,
                 "type": "native",

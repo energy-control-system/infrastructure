@@ -296,6 +296,13 @@ class BootstrapSpecTests(unittest.TestCase):
             "sum(tasks_count) as \"Количество\"",
             specs_by_name["Статусы абонентов по типам проверок"]["dataset_query"]["native"]["query"],
         )
+        self.assertEqual(
+            specs_by_name["Рейтинг бригад по числу выполненных задач"]["visualization_settings"],
+            {
+                "graph.dimensions": ["Бригада"],
+                "graph.metrics": ["Количество задач"],
+            },
+        )
         self.assertIn(
             "v_bi_consumption_anomalies",
             specs_by_name["Последние аномалии потребления"]["dataset_query"]["native"]["query"],
@@ -453,10 +460,11 @@ class BootstrapSpecTests(unittest.TestCase):
                 "graph.metrics": ["Расход, кВтч"],
             },
         )
-        other_calls = [call for call in update_card_calls if call[2]["name"] != "Помесячное потребление абонентов"]
+        configured_cards = {"Помесячное потребление абонентов"}
+        other_calls = [call for call in update_card_calls if call[2]["name"] not in configured_cards]
         self.assertTrue(
             all(call[2]["visualization_settings"] == {} for call in other_calls),
-            msg="only the monthly consumption line chart should customize visualization_settings",
+            msg="only cards with ambiguous axes should customize visualization_settings",
         )
 
     def test_run_bootstrap_sets_empty_visualization_settings_on_new_cards(self) -> None:
@@ -474,10 +482,19 @@ class BootstrapSpecTests(unittest.TestCase):
                 "graph.metrics": ["Расход, кВтч"],
             },
         )
-        other_calls = [call for call in create_card_calls if call[1]["name"] != "Помесячное потребление абонентов"]
+        brigade_call = next(call for call in create_card_calls if call[1]["name"] == "Рейтинг бригад по числу выполненных задач")
+        self.assertEqual(
+            brigade_call[1]["visualization_settings"],
+            {
+                "graph.dimensions": ["Бригада"],
+                "graph.metrics": ["Количество задач"],
+            },
+        )
+        configured_cards = {"Помесячное потребление абонентов", "Рейтинг бригад по числу выполненных задач"}
+        other_calls = [call for call in create_card_calls if call[1]["name"] not in configured_cards]
         self.assertTrue(
             all(call[1]["visualization_settings"] == {} for call in other_calls),
-            msg="only the monthly consumption line chart should customize visualization_settings",
+            msg="only cards with ambiguous axes should customize visualization_settings",
         )
 
     def test_build_dashcards_payload_reuses_existing_ids_and_creates_negative_ids_for_new_cards(self) -> None:
