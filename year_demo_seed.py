@@ -38,8 +38,8 @@ SURNAMES = (
     "Виноградов",
     "Соколов",
 )
-NAMES = ("Алексей", "Дмитрий", "Сергей", "Павел", "Игорь", "Олег", "Марина", "Елена")
-PATRONYMICS = ("Алексеевич", "Дмитриевич", "Сергеевич", "Павлович", "Игоревич", "Олегович", "Сергеевна", "Петровна")
+NAMES = ("Алексей", "Дмитрий", "Сергей", "Павел", "Игорь", "Олег", "Виктор", "Николай")
+PATRONYMICS = ("Алексеевич", "Дмитриевич", "Сергеевич", "Павлович", "Игоревич", "Олегович", "Викторович", "Николаевич")
 STREETS = (
     "Центральный район, ул. Ленина",
     "Северный район, ул. Мира",
@@ -407,27 +407,31 @@ def estimate_anomaly_reasons(cases: list[YearSeedCase]) -> set[str]:
         monthly[key] += case.consumption
 
     subscriber_values = defaultdict(list)
-    district_values = defaultdict(list)
+    district_month_values = defaultdict(list)
     for (month, subscriber_id, object_id, district_name), consumption in monthly.items():
-        subscriber_values[(subscriber_id, object_id)].append(consumption)
-        district_values[district_name].append(consumption)
+        subscriber_values[(subscriber_id, object_id)].append((month, consumption))
+        district_month_values[(district_name, month)].append(consumption)
 
     reasons = set()
     for (month, subscriber_id, object_id, district_name), consumption in monthly.items():
-        own_values = subscriber_values[(subscriber_id, object_id)]
-        own_avg = sum(own_values, Decimal("0")) / Decimal(len(own_values))
-        other_district_values = [value for value in district_values[district_name] if value != consumption]
-        district_avg = sum(other_district_values, Decimal("0")) / Decimal(len(other_district_values)) if other_district_values else Decimal("0")
-        subscriber_deviation = abs(consumption - own_avg) / own_avg if own_avg > 0 else Decimal("0")
-        district_ratio = consumption / district_avg if district_avg > 0 else Decimal("0")
+        own_history = [value for value_month, value in subscriber_values[(subscriber_id, object_id)] if value_month < month]
+        own_avg = sum(own_history, Decimal("0")) / Decimal(len(own_history)) if own_history else Decimal("0")
+        district_values = district_month_values[(district_name, month)]
+        district_avg = (
+            (sum(district_values, Decimal("0")) - consumption) / Decimal(len(district_values) - 1)
+            if len(district_values) > 1
+            else Decimal("0")
+        )
+        subscriber_deviation = (consumption - own_avg) / own_avg if own_avg > 0 else Decimal("0")
+        district_deviation = (consumption - district_avg) / district_avg if district_avg > 0 else Decimal("0")
 
-        if len(own_values) >= 3 and consumption > own_avg and subscriber_deviation >= Decimal("0.5"):
+        if len(own_history) >= 3 and subscriber_deviation >= Decimal("0.5"):
             reasons.add("Скачок относительно истории абонента")
-        elif len(own_values) >= 3 and consumption < own_avg and subscriber_deviation >= Decimal("0.5"):
+        elif len(own_history) >= 3 and subscriber_deviation <= Decimal("-0.5"):
             reasons.add("Провал относительно истории абонента")
-        elif district_ratio >= Decimal("2.5"):
+        elif district_deviation >= Decimal("1.5"):
             reasons.add("Выше среднего по району")
-        elif district_avg > 0 and district_ratio <= Decimal("0.4"):
+        elif district_deviation <= Decimal("-0.6"):
             reasons.add("Ниже среднего по району")
 
     return reasons

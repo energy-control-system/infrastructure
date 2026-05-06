@@ -630,6 +630,10 @@ limit 50
         {
             "name": "Помесячное потребление абонентов",
             "display": "line",
+            "visualization_settings": {
+                "graph.dimensions": ["Месяц", "Лицевой счет"],
+                "graph.metrics": ["Расход, кВтч"],
+            },
             "dataset_query": {
                 "database": database_id,
                 "type": "native",
@@ -644,6 +648,19 @@ where 1 = 1
 [[and month >= {{{{period}}}}]]
 [[and subscriber_account_number = {{{{subscriber_account_number}}}}]]
 [[and district_name = {{{{district_name}}}}]]
+and subscriber_account_number in (
+  select subscriber_account_number
+  from (
+    select distinct subscriber_account_number
+    from v_bi_consumption_monthly
+    where 1 = 1
+    [[and month >= {{{{period}}}}]]
+    [[and subscriber_account_number = {{{{subscriber_account_number}}}}]]
+    [[and district_name = {{{{district_name}}}}]]
+    order by rand()
+    limit 5
+  )
+)
 order by month, subscriber_account_number
 """,
                     ["period", "subscriber_account_number", "district_name"],
@@ -791,7 +808,7 @@ def upsert_cards(client, collection_id: int, database_id: int):
             "display": spec["display"],
             "dataset_query": spec["dataset_query"],
             "collection_id": collection_id,
-            "visualization_settings": {},
+            "visualization_settings": spec.get("visualization_settings", {}),
         }
         existing = find_collection_card(items, spec["name"])
         if existing is None:

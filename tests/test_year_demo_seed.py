@@ -55,6 +55,13 @@ class YearDemoSeedTests(unittest.TestCase):
             6,
         )
 
+    def test_build_year_cases_uses_only_male_full_names(self) -> None:
+        cases = build_year_cases(rows=1000, start_date=date(2025, 1, 1), base_id=DEFAULT_BASE_ID)
+
+        self.assertFalse({case.name for case in cases} & {"Марина", "Елена"})
+        self.assertTrue(all(case.surname.endswith("ов") or case.surname.endswith("ев") or case.surname.endswith("ин") for case in cases))
+        self.assertTrue(all(case.patronymic.endswith(("ич", "ыч")) for case in cases))
+
     def test_build_year_cases_produces_multiple_anomaly_reasons(self) -> None:
         cases = build_year_cases(rows=1000, start_date=date(2025, 1, 1), base_id=DEFAULT_BASE_ID)
 

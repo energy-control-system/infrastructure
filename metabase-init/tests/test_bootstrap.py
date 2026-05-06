@@ -131,6 +131,7 @@ class PaginatedScopeClient(RecordingClient):
             "data": [
                 {"id": 501, "name": "Всего завершенных задач", "model": "dashboard"},
                 {"id": 777, "name": "Всего завершенных задач", "model": "card"},
+                {"id": 778, "name": "Помесячное потребление абонентов", "model": "card"},
             ]
         }
 
@@ -303,6 +304,10 @@ class BootstrapSpecTests(unittest.TestCase):
             "v_bi_consumption_monthly",
             specs_by_name["Помесячное потребление абонентов"]["dataset_query"]["native"]["query"],
         )
+        monthly_query = specs_by_name["Помесячное потребление абонентов"]["dataset_query"]["native"]["query"]
+        self.assertIn("select distinct subscriber_account_number", monthly_query)
+        self.assertIn("order by rand()", monthly_query)
+        self.assertIn("limit 5", monthly_query)
         self.assertIn(
             "monthly_consumption_kwh",
             specs_by_name["Отклонение от среднего по району"]["dataset_query"]["native"]["query"],
@@ -440,9 +445,18 @@ class BootstrapSpecTests(unittest.TestCase):
         self.assertTrue(update_card_calls)
         self.assertEqual(update_card_calls[0][1], 777)
         self.assertNotIn(501, [item[1] for item in update_card_calls])
+        monthly_call = next(call for call in update_card_calls if call[2]["name"] == "Помесячное потребление абонентов")
+        self.assertEqual(
+            monthly_call[2]["visualization_settings"],
+            {
+                "graph.dimensions": ["Месяц", "Лицевой счет"],
+                "graph.metrics": ["Расход, кВтч"],
+            },
+        )
+        other_calls = [call for call in update_card_calls if call[2]["name"] != "Помесячное потребление абонентов"]
         self.assertTrue(
-            all(call[2]["visualization_settings"] == {} for call in update_card_calls),
-            msg="update payloads must include empty visualization_settings",
+            all(call[2]["visualization_settings"] == {} for call in other_calls),
+            msg="only the monthly consumption line chart should customize visualization_settings",
         )
 
     def test_run_bootstrap_sets_empty_visualization_settings_on_new_cards(self) -> None:
@@ -452,9 +466,18 @@ class BootstrapSpecTests(unittest.TestCase):
 
         create_card_calls = [item for item in client.calls if item[0] == "create_card"]
         self.assertTrue(create_card_calls)
+        monthly_call = next(call for call in create_card_calls if call[1]["name"] == "Помесячное потребление абонентов")
+        self.assertEqual(
+            monthly_call[1]["visualization_settings"],
+            {
+                "graph.dimensions": ["Месяц", "Лицевой счет"],
+                "graph.metrics": ["Расход, кВтч"],
+            },
+        )
+        other_calls = [call for call in create_card_calls if call[1]["name"] != "Помесячное потребление абонентов"]
         self.assertTrue(
-            all(call[1]["visualization_settings"] == {} for call in create_card_calls),
-            msg="create payloads must include empty visualization_settings",
+            all(call[1]["visualization_settings"] == {} for call in other_calls),
+            msg="only the monthly consumption line chart should customize visualization_settings",
         )
 
     def test_build_dashcards_payload_reuses_existing_ids_and_creates_negative_ids_for_new_cards(self) -> None:
