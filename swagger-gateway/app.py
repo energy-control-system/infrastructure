@@ -64,7 +64,7 @@ async def fetch_json(client: httpx.AsyncClient, service: ServiceSpec) -> dict[st
 
 def merge_specs(specs: list[tuple[ServiceSpec, dict[str, Any]]]) -> dict[str, Any]:
     merged: dict[str, Any] = {
-        "openapi": "3.0.3",
+        "openapi": "3.1.0",
         "info": {
             "title": "Energy Control API",
             "version": "1.0",
@@ -87,14 +87,12 @@ def merge_specs(specs: list[tuple[ServiceSpec, dict[str, Any]]]) -> dict[str, An
 
 
 def convert_to_openapi3(service_name: str, spec: dict[str, Any]) -> dict[str, Any]:
-    if "openapi" in spec:
+    if spec.get("openapi") == "3.1.0":
         return namespace_openapi3(service_name, spec)
-    if spec.get("swagger") == "2.0":
-        return namespace_swagger2(service_name, spec)
 
     raise HTTPException(
         status_code=502,
-        detail=f"Unsupported OpenAPI/Swagger version from {service_name}",
+        detail=f"Unsupported OpenAPI version from {service_name}: expected 3.1.0",
     )
 
 
@@ -109,22 +107,6 @@ def namespace_openapi3(service_name: str, spec: dict[str, Any]) -> dict[str, Any
             "schemas": {
                 schema_map[name]: rewrite_refs(schema, schema_map)
                 for name, schema in schemas.items()
-            }
-        },
-    }
-
-
-def namespace_swagger2(service_name: str, spec: dict[str, Any]) -> dict[str, Any]:
-    definitions = spec.get("definitions", {})
-    schema_map = {name: namespaced_schema_name(service_name, name) for name in definitions}
-
-    return {
-        "info": spec.get("info", {}),
-        "paths": rewrite_refs(prefix_operation_tags(service_name, spec.get("paths", {})), schema_map),
-        "components": {
-            "schemas": {
-                schema_map[name]: rewrite_refs(schema, schema_map)
-                for name, schema in definitions.items()
             }
         },
     }
