@@ -80,6 +80,45 @@ def test_openapi_json_merges_specs_with_gateway_prefixes(monkeypatch):
     assert "analyzer-service_ProcessImageResponse" in spec["components"]["schemas"]
 
 
+def test_openapi_json_accepts_openapi_30_specs(monkeypatch):
+    async def fake_fetch_json(client, service):
+        return {
+            "openapi": "3.0.0",
+            "info": {"title": "User Service API", "version": "1.0"},
+            "paths": {
+                "/users": {
+                    "get": {
+                        "tags": ["Users"],
+                        "responses": {"200": {"description": "OK"}},
+                    }
+                }
+            },
+            "components": {
+                "schemas": {
+                    "UserDto": {
+                        "type": "object",
+                        "properties": {"id": {"type": "number"}},
+                    }
+                }
+            },
+        }
+
+    monkeypatch.setattr(gateway, "fetch_json", fake_fetch_json)
+    monkeypatch.setattr(
+        gateway,
+        "SERVICES",
+        (gateway.ServiceSpec("user-service", "http://user-service:3000/docs-json"),),
+    )
+
+    response = TestClient(gateway.app).get("/api/docs/openapi.json")
+
+    assert response.status_code == 200
+    spec = response.json()
+    assert "/api/user-service/users" in spec["paths"]
+    assert spec["paths"]["/api/user-service/users"]["get"]["tags"] == ["user-service: Users"]
+    assert "user-service_UserDto" in spec["components"]["schemas"]
+
+
 def test_openapi_json_rejects_legacy_swagger2_specs(monkeypatch):
     async def fake_fetch_json(client, service):
         return {

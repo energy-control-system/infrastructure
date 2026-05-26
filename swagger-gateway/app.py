@@ -21,6 +21,7 @@ SERVICES = (
     ServiceSpec("analytics-service", "http://analytics-service/debug/swagger/doc.json"),
     ServiceSpec("brigade-service", "http://brigade-service/debug/swagger/doc.json"),
     ServiceSpec("subscriber-service", "http://subscriber-service/debug/swagger/doc.json"),
+    ServiceSpec("user-service", "http://user-service:3000/docs-json"),
     ServiceSpec("analyzer-service", "http://analyzer-service/openapi.json"),
 )
 
@@ -87,12 +88,12 @@ def merge_specs(specs: list[tuple[ServiceSpec, dict[str, Any]]]) -> dict[str, An
 
 
 def convert_to_openapi3(service_name: str, spec: dict[str, Any]) -> dict[str, Any]:
-    if spec.get("openapi") == "3.1.0":
+    if str(spec.get("openapi", "")).startswith("3."):
         return namespace_openapi3(service_name, spec)
 
     raise HTTPException(
         status_code=502,
-        detail=f"Unsupported OpenAPI version from {service_name}: expected 3.1.0",
+        detail=f"Unsupported OpenAPI version from {service_name}: expected OpenAPI 3.x",
     )
 
 

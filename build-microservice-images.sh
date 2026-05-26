@@ -13,6 +13,7 @@ SERVICES=(
   "analytics-service"
   "brigade-service"
   "subscriber-service"
+  "user-service"
 )
 
 if ! command -v docker >/dev/null 2>&1; then

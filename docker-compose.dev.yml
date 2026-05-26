@@ -173,7 +173,7 @@ services:
     container_name: postgres-db-init
     environment:
       PGPASSWORD: GvcLkrWP9x8ey2xI9F
-      POSTGRES_DBS: file_service task_service inspection_service analytics_service brigade_service subscriber_service
+      POSTGRES_DBS: file_service task_service inspection_service analytics_service brigade_service subscriber_service user_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -262,6 +262,8 @@ services:
         condition: service_started
       subscriber-service:
         condition: service_started
+      user-service:
+        condition: service_started
     networks:
       - backend
 
@@ -303,6 +305,8 @@ services:
       brigade-service:
         condition: service_started
       subscriber-service:
+        condition: service_started
+      user-service:
         condition: service_started
     networks:
       - backend
@@ -475,6 +479,24 @@ services:
       kafka:
         condition: service_healthy
       kafka-topics-init:
+        condition: service_completed_successfully
+    networks:
+      - backend
+
+  user-service:
+    image: user-service:latest
+    container_name: user-service
+    build:
+      context: ../user-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://postgres:GvcLkrWP9x8ey2xI9F@postgres:5432/user_service
+      JWT_SECRET: dev-user-service-secret
+      JWT_EXPIRES_IN: 3600
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-db-init:
         condition: service_completed_successfully
     networks:
       - backend

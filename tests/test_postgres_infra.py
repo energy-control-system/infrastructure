@@ -29,7 +29,7 @@ class PostgresInfraContractTests(unittest.TestCase):
         for token in (
             "postgres-db-init:",
             "container_name: postgres-db-init",
-            "POSTGRES_DBS: file_service task_service inspection_service analytics_service brigade_service subscriber_service",
+            "POSTGRES_DBS: file_service task_service inspection_service analytics_service brigade_service subscriber_service user_service",
             "until pg_isready -h postgres -U postgres; do sleep 2; done",
             'SELECT 1 FROM pg_database WHERE datname = ',
             "CREATE DATABASE",
@@ -46,6 +46,7 @@ class PostgresInfraContractTests(unittest.TestCase):
             "analytics-service",
             "brigade-service",
             "subscriber-service",
+            "user-service",
         ):
             section = self._service_section(text, service)
             self.assertIn("postgres-db-init:\n        condition: service_completed_successfully", section)
