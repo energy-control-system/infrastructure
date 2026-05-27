@@ -23,6 +23,14 @@ BRIGADES = (
     (DEFAULT_BASE_ID + 2, (910_201, 910_202)),
     (DEFAULT_BASE_ID + 3, (910_301, 910_302)),
 )
+DEMO_INSPECTOR_NAMES = {
+    910_101: ("Орлов", "Павел", "Сергеевич"),
+    910_102: ("Кузнецов", "Андрей", "Викторович"),
+    910_201: ("Морозов", "Дмитрий", "Алексеевич"),
+    910_202: ("Соколов", "Игорь", "Николаевич"),
+    910_301: ("Волков", "Роман", "Петрович"),
+    910_302: ("Новиков", "Максим", "Олегович"),
+}
 
 SURNAMES = (
     "Иванов",
@@ -276,11 +284,12 @@ def render_user_sql() -> str:
     user_ids = ", ".join(str(inspector_id) for inspector_id in inspector_ids)
     users = ",\n".join(
         "("
-        f"{inspector_id}, 1, {sql_str('Инспектор')}, {sql_str(str(slot + 1))}, {sql_str('Демо')}, "
+        f"{inspector_id}, 1, {sql_str(DEMO_INSPECTOR_NAMES[inspector_id][0])}, "
+        f"{sql_str(DEMO_INSPECTOR_NAMES[inspector_id][1])}, {sql_str(DEMO_INSPECTOR_NAMES[inspector_id][2])}, "
         f"{sql_str(demo_inspector_phone(inspector_id))}, {sql_str(f'year.demo.inspector.{inspector_id}@energo.local')}, "
         f"{sql_str(DEMO_PASSWORD_HASH)}, now(), now()"
         ")"
-        for slot, inspector_id in enumerate(inspector_ids)
+        for inspector_id in inspector_ids
     )
     return f"""
 create table if not exists users (

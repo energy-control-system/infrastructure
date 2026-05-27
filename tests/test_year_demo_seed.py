@@ -102,7 +102,11 @@ class YearDemoSeedTests(unittest.TestCase):
         self.assertIn("910101", user_sql)
         self.assertIn("910102", user_sql)
         self.assertIn("year.demo.inspector.910101@energo.local", user_sql)
-        self.assertIn("Инспектор", user_sql)
+        self.assertIn("Орлов", user_sql)
+        self.assertIn("Павел", user_sql)
+        self.assertIn("Сергеевич", user_sql)
+        self.assertNotIn("'Инспектор'", user_sql)
+        self.assertNotIn("'Демо'", user_sql)
 
     def test_render_clickhouse_json_lines_matches_finished_tasks_schema(self) -> None:
         cases = build_year_cases(rows=1, start_date=date(2025, 1, 1), base_id=DEFAULT_BASE_ID)
