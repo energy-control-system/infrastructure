@@ -13,6 +13,7 @@ from year_demo_seed import (
     render_inspection_sql,
     render_subscriber_sql,
     render_task_sql,
+    render_user_sql,
     run_seed,
 )
 
@@ -82,6 +83,7 @@ class YearDemoSeedTests(unittest.TestCase):
         brigade_sql = render_brigade_sql()
         task_sql = render_task_sql(cases)
         inspection_sql = render_inspection_sql(cases)
+        user_sql = render_user_sql()
 
         self.assertIn("insert into subscribers", subscriber_sql)
         self.assertIn("insert into contracts", subscriber_sql)
@@ -89,7 +91,18 @@ class YearDemoSeedTests(unittest.TestCase):
         self.assertIn("insert into tasks", task_sql)
         self.assertIn("insert into inspections", inspection_sql)
         self.assertIn("insert into inspected_devices", inspection_sql)
+        self.assertIn("insert into users", user_sql)
+        self.assertIn("role_id", user_sql)
         self.assertIn("2025-01-01T", task_sql)
+
+    def test_render_user_sql_seeds_demo_inspectors_for_brigades(self) -> None:
+        user_sql = render_user_sql()
+
+        self.assertIn("delete from users where id in", user_sql)
+        self.assertIn("910101", user_sql)
+        self.assertIn("910102", user_sql)
+        self.assertIn("year.demo.inspector.910101@energo.local", user_sql)
+        self.assertIn("Инспектор", user_sql)
 
     def test_render_clickhouse_json_lines_matches_finished_tasks_schema(self) -> None:
         cases = build_year_cases(rows=1, start_date=date(2025, 1, 1), base_id=DEFAULT_BASE_ID)
@@ -121,9 +134,10 @@ class YearDemoSeedTests(unittest.TestCase):
         self.assertIn("brigade_service", joined)
         self.assertIn("task_service", joined)
         self.assertIn("inspection_service", joined)
+        self.assertIn("user_service", joined)
         self.assertIn("analytics_service.finished_tasks", joined)
         self.assertIn("--port 9123", joined)
-        self.assertEqual(6, len(commands))
+        self.assertEqual(7, len(commands))
 
 
 if __name__ == "__main__":

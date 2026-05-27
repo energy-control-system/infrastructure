@@ -140,6 +140,7 @@ class DemoSeedWorkflowTests(unittest.TestCase):
                 "/api/task-service/tasks",
                 "/api/inspection-service/inspections",
                 "/api/analytics-service/reports",
+                "/api/user-service/users",
             ],
             [path for _, path, _ in client.calls],
         )
@@ -427,6 +428,7 @@ class _StackReadyClient:
             "/api/task-service/tasks",
             "/api/inspection-service/inspections",
             "/api/analytics-service/reports",
+            "/api/user-service/users",
         }:
             return []
 
@@ -465,6 +467,7 @@ class _ReportRetryClient(_StackReadyClient):
             "/api/subscriber-service/subscribers",
             "/api/task-service/tasks",
             "/api/inspection-service/inspections",
+            "/api/user-service/users",
         }:
             return []
 

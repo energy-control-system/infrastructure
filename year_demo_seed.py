@@ -61,6 +61,7 @@ METHODS = {
     "verification": "Осмотр прибора учета и проверка схемы подключения.",
     "unauthorized_connection": "Фиксация самовольного подключения в обход прибора учета.",
 }
+DEMO_PASSWORD_HASH = "$2b$10$CwTycUXWue0Thq9StjUM0uJ8TGTSt1n1.Ki/hxL7s.1UTMwuY5M2G"
 
 
 @dataclass(frozen=True)
@@ -267,6 +268,40 @@ insert into brigades (id, status, created_at, updated_at) overriding system valu
 {values};
 insert into brigade_members (brigade_id, inspector_id, assigned_at) values
 {members};
+"""
+
+
+def render_user_sql() -> str:
+    inspector_ids = tuple(inspector_id for _, inspector_ids in BRIGADES for inspector_id in inspector_ids)
+    user_ids = ", ".join(str(inspector_id) for inspector_id in inspector_ids)
+    users = ",\n".join(
+        "("
+        f"{inspector_id}, 1, {sql_str('Инспектор')}, {sql_str(str(slot + 1))}, {sql_str('Демо')}, "
+        f"{sql_str(demo_inspector_phone(inspector_id))}, {sql_str(f'year.demo.inspector.{inspector_id}@energo.local')}, "
+        f"{sql_str(DEMO_PASSWORD_HASH)}, now(), now()"
+        ")"
+        for slot, inspector_id in enumerate(inspector_ids)
+    )
+    return f"""
+create table if not exists users (
+    id serial primary key,
+    role_id integer not null,
+    surname text not null,
+    name text not null,
+    patronymic text,
+    phone_number text not null unique,
+    email text not null unique,
+    password_hash text not null,
+    refresh_token text,
+    refresh_token_expired_after timestamp with time zone,
+    created_at timestamp with time zone default now() not null,
+    updated_at timestamp with time zone default now() not null,
+    constraint phone_number_format check (phone_number ~ '^(\\+7|8)\\d{{10}}$'),
+    constraint email_format check (email ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{{2,}}$')
+);
+delete from users where id in ({user_ids});
+insert into users (id, role_id, surname, name, patronymic, phone_number, email, password_hash, created_at, updated_at) overriding system value values
+{users};
 """
 
 
@@ -508,6 +543,7 @@ def run_seed(
     random_seed: int = DEFAULT_RANDOM_SEED,
 ) -> None:
     cases = build_year_cases(rows=rows, start_date=start_date, base_id=base_id, random_seed=random_seed)
+    run_psql(compose_file, "user_service", render_user_sql(), project_name=project_name)
     run_psql(compose_file, "subscriber_service", render_subscriber_sql(cases), project_name=project_name)
     run_psql(compose_file, "brigade_service", render_brigade_sql(), project_name=project_name)
     run_psql(compose_file, "task_service", render_task_sql(cases), project_name=project_name)
@@ -588,6 +624,10 @@ def sql_ts(value: datetime) -> str:
 
 def ch_dt(value: datetime) -> str:
     return value.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def demo_inspector_phone(inspector_id: int) -> str:
+    return f"+7910{inspector_id:07d}"[-12:]
 
 
 def subscriber_status(case: YearSeedCase) -> int:

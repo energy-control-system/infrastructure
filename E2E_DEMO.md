@@ -55,8 +55,10 @@ uv run python year_demo_seed.py
 
 По умолчанию скрипт создает `1000` завершенных проверок, распределенных по году с разным количеством проверок в разные дни.
 Абоненты, адреса, даты, типы проверок, бригады и потребление распределяются псевдослучайно, но воспроизводимо через `--random-seed`.
-Он пишет связанные данные в PostgreSQL БД `subscriber_service`, `brigade_service`, `task_service`, `inspection_service`
+Он пишет связанные данные в PostgreSQL БД `user_service`, `subscriber_service`, `brigade_service`, `task_service`, `inspection_service`
 и в ClickHouse таблицу `analytics_service.finished_tasks`.
+В `user_service` скрипт создает таблицу `users`, если миграция еще не применена, и добавляет демо-пользователей инспекторов с ID,
+совпадающими с `inspector_id` в `brigade_service.brigade_members`.
 
 Параметры:
 

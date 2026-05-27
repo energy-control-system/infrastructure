@@ -13,6 +13,7 @@ STACK_READY_PATHS = (
     "/api/task-service/tasks",
     "/api/inspection-service/inspections",
     "/api/analytics-service/reports",
+    "/api/user-service/users",
 )
 
 
