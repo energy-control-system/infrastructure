@@ -27,6 +27,23 @@ SERVICES = (
 
 GATEWAY_DOCS_PATH = "/api/docs"
 GATEWAY_OPENAPI_PATH = "/api/docs/openapi.json"
+BEARER_SECURITY_SCHEME_NAME = "bearer"
+BEARER_SECURITY_SCHEME = {
+    "type": "http",
+    "scheme": "bearer",
+    "bearerFormat": "JWT",
+    "description": "JWT access token issued by user-service.",
+}
+HTTP_METHODS = {
+    "get",
+    "put",
+    "post",
+    "delete",
+    "options",
+    "head",
+    "patch",
+    "trace",
+}
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -38,6 +55,7 @@ async def docs():
         title="Energy Control API - Swagger UI",
         swagger_js_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js",
         swagger_css_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css",
+        swagger_ui_parameters={"persistAuthorization": True},
     )
 
 
@@ -74,7 +92,10 @@ def merge_specs(specs: list[tuple[ServiceSpec, dict[str, Any]]]) -> dict[str, An
         "servers": [{"url": "/"}],
         "tags": [],
         "paths": {},
-        "components": {"schemas": {}},
+        "components": {
+            "schemas": {},
+            "securitySchemes": {BEARER_SECURITY_SCHEME_NAME: BEARER_SECURITY_SCHEME},
+        },
     }
 
     for service, spec in specs:
@@ -100,10 +121,12 @@ def convert_to_openapi3(service_name: str, spec: dict[str, Any]) -> dict[str, An
 def namespace_openapi3(service_name: str, spec: dict[str, Any]) -> dict[str, Any]:
     schemas = spec.get("components", {}).get("schemas", {})
     schema_map = {name: namespaced_schema_name(service_name, name) for name in schemas}
+    security_map = bearer_security_scheme_map(spec.get("components", {}).get("securitySchemes", {}))
+    paths = rewrite_refs(prefix_operation_tags(service_name, spec.get("paths", {})), schema_map)
 
     return {
         "info": spec.get("info", {}),
-        "paths": rewrite_refs(prefix_operation_tags(service_name, spec.get("paths", {})), schema_map),
+        "paths": rewrite_security_requirements(paths, security_map),
         "components": {
             "schemas": {
                 schema_map[name]: rewrite_refs(schema, schema_map)
@@ -134,16 +157,7 @@ def prefix_operation_tags(service_name: str, paths: dict[str, Any]) -> dict[str,
         if not isinstance(item, dict):
             continue
         for method, operation in item.items():
-            if method.lower() not in {
-                "get",
-                "put",
-                "post",
-                "delete",
-                "options",
-                "head",
-                "patch",
-                "trace",
-            }:
+            if method.lower() not in HTTP_METHODS:
                 continue
             if not isinstance(operation, dict):
                 continue
@@ -161,16 +175,7 @@ def collect_operation_tags(paths: dict[str, Any]) -> list[dict[str, str]]:
         if not isinstance(item, dict):
             continue
         for method, operation in item.items():
-            if method.lower() not in {
-                "get",
-                "put",
-                "post",
-                "delete",
-                "options",
-                "head",
-                "patch",
-                "trace",
-            }:
+            if method.lower() not in HTTP_METHODS:
                 continue
             if not isinstance(operation, dict):
                 continue
@@ -181,6 +186,66 @@ def collect_operation_tags(paths: dict[str, Any]) -> list[dict[str, str]]:
                 tags.append({"name": tag})
 
     return tags
+
+
+def bearer_security_scheme_map(security_schemes: dict[str, Any]) -> dict[str, str]:
+    return {
+        name: BEARER_SECURITY_SCHEME_NAME
+        for name, scheme in security_schemes.items()
+        if is_bearer_security_scheme(name, scheme)
+    }
+
+
+def is_bearer_security_scheme(name: str, scheme: Any) -> bool:
+    normalized_name = name.replace("_", "").replace("-", "").lower()
+    if normalized_name in {"bearer", "bearerauth", "jwtauth", "apikeyauth"}:
+        return True
+
+    if not isinstance(scheme, dict):
+        return False
+
+    if scheme.get("type") == "http" and str(scheme.get("scheme", "")).lower() == "bearer":
+        return True
+
+    return (
+        scheme.get("type") == "apiKey"
+        and str(scheme.get("in", "")).lower() == "header"
+        and str(scheme.get("name", "")).lower() == "authorization"
+    )
+
+
+def rewrite_security_requirements(value: Any, security_map: dict[str, str]) -> Any:
+    if isinstance(value, list):
+        return [rewrite_security_requirements(item, security_map) for item in value]
+    if not isinstance(value, dict):
+        return value
+
+    rewritten = {}
+    for key, item in value.items():
+        if key == "security" and isinstance(item, list):
+            rewritten[key] = normalize_security_requirements(item, security_map)
+        else:
+            rewritten[key] = rewrite_security_requirements(item, security_map)
+    return rewritten
+
+
+def normalize_security_requirements(
+    requirements: list[Any],
+    security_map: dict[str, str],
+) -> list[Any]:
+    normalized = []
+
+    for requirement in requirements:
+        if not isinstance(requirement, dict):
+            normalized.append(requirement)
+            continue
+
+        normalized_requirement = {}
+        for name, scopes in requirement.items():
+            normalized_requirement[security_map.get(name, name)] = scopes
+        normalized.append(normalized_requirement)
+
+    return normalized
 
 
 def rewrite_refs(value: Any, schema_map: dict[str, str]) -> Any:

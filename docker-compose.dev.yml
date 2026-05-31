@@ -354,6 +354,7 @@ services:
       dockerfile: Dockerfile
     environment:
       ENV: dev
+      JWT_SECRET: dev-user-service-secret
       MINIO_USER: root
       MINIO_PASSWORD: lABEgpTa8piMO4wSM91B
       POSTGRES_PASSWORD: GvcLkrWP9x8ey2xI9F
@@ -384,6 +385,7 @@ services:
       dockerfile: Dockerfile
     environment:
       ENV: dev
+      JWT_SECRET: dev-user-service-secret
       POSTGRES_PASSWORD: GvcLkrWP9x8ey2xI9F
     depends_on:
       postgres:
@@ -405,6 +407,7 @@ services:
       dockerfile: Dockerfile
     environment:
       ENV: dev
+      JWT_SECRET: dev-user-service-secret
       POSTGRES_PASSWORD: GvcLkrWP9x8ey2xI9F
     depends_on:
       postgres:
@@ -426,6 +429,7 @@ services:
       dockerfile: Dockerfile
     environment:
       ENV: dev
+      JWT_SECRET: dev-user-service-secret
       POSTGRES_PASSWORD: GvcLkrWP9x8ey2xI9F
       CLICKHOUSE_USER: root
       CLICKHOUSE_PASSWORD: s4c1A2bgbqK2FJuR20R7
@@ -451,6 +455,7 @@ services:
       dockerfile: Dockerfile
     environment:
       ENV: dev
+      JWT_SECRET: dev-user-service-secret
       POSTGRES_PASSWORD: GvcLkrWP9x8ey2xI9F
     depends_on:
       postgres:
@@ -472,6 +477,7 @@ services:
       dockerfile: Dockerfile
     environment:
       ENV: dev
+      JWT_SECRET: dev-user-service-secret
       POSTGRES_PASSWORD: GvcLkrWP9x8ey2xI9F
     depends_on:
       postgres:
