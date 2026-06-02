@@ -17,7 +17,7 @@
 
 1. Полный стенд с `Nginx` и маршрутом `/metabase`:
    ```bash
-   docker compose -f infrastructure/docker-compose.dev.yml up -d --build
+   docker compose -f infrastructure/docker-compose.dev.yml -p energy-control-system up -d --build
    ```
 2. Откройте Metabase:
    - `http://localhost/metabase/`
@@ -29,7 +29,7 @@
 Если нужно поднять только `analytics-service`, его зависимости и Metabase, без полного стенда:
 
 ```bash
-MB_SITE_URL=http://localhost:3000/ docker compose -f infrastructure/docker-compose.dev.yml up -d --build \
+MB_SITE_URL=http://localhost:3000/ docker compose -f infrastructure/docker-compose.dev.yml -p energy-control-system up -d --build \
   postgres kafka clickhouse clickhouse-db-init analytics-service \
   metabase-db-init metabase metabase-init
 ```
@@ -60,24 +60,6 @@ MB_SITE_URL=http://localhost:3000/ docker compose -f infrastructure/docker-compo
 
 Район в текущей модели проекта выводится из адреса объекта как часть до первой запятой, например `ул. Ленина` из `ул. Ленина, д. 1, кв. 10`. Если в доменной модели появится отдельное поле района или состава семьи, витрину можно переключить на него без изменения Metabase API-слоя.
 
-## Prod env
-
-В `infrastructure/docker-compose.prod.yml` для `metabase` нужен только `POSTGRES_PASSWORD`, а для `metabase-init` обязательны:
-
-- `METABASE_URL`
-- `METABASE_ADMIN_EMAIL`
-- `METABASE_ADMIN_PASSWORD`
-- `METABASE_ADMIN_FIRST_NAME`
-- `METABASE_ADMIN_LAST_NAME`
-- `METABASE_COLLECTION_NAME`
-- `METABASE_CLICKHOUSE_NAME`
-- `METABASE_CLICKHOUSE_HOST`
-- `METABASE_CLICKHOUSE_DB`
-- `METABASE_CLICKHOUSE_USER`
-- `METABASE_CLICKHOUSE_PASSWORD`
-
-Для Metabase используется HTTP-порт ClickHouse `8123`, а для `clickhouse-client` в init/check-командах — native-порт `9123`.
-
 ## Быстрая проверка
 
 - Health Metabase через `Nginx`:
@@ -90,11 +72,11 @@ MB_SITE_URL=http://localhost:3000/ docker compose -f infrastructure/docker-compo
   ```
 - Логи bootstrap:
   ```bash
-  docker compose -f infrastructure/docker-compose.dev.yml logs --tail=200 metabase-init
+  docker compose -p energy-control-system logs --tail=200 metabase-init
   ```
 - Проверка BI views в ClickHouse:
   ```bash
-  docker compose -f infrastructure/docker-compose.dev.yml exec clickhouse \
+  docker compose -p energy-control-system exec clickhouse \
     clickhouse-client --port 9123 -u root --password 's4c1A2bgbqK2FJuR20R7' \
     -d analytics_service --query "SHOW TABLES LIKE 'v_bi_%'"
   ```

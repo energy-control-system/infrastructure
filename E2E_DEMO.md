@@ -10,7 +10,7 @@
 2. Поднять стенд:
 
 ```bash
-docker compose -f docker-compose.dev.yml up --build -d
+docker compose -f docker-compose.dev.yml -p energy-control-system up --build -d
 ```
 
 3. Убедиться, что `Nginx` отвечает по `http://localhost`.
@@ -41,8 +41,8 @@ ENERGO_E2E_RUN_FULL_STACK=1 ENERGO_E2E_BASE_URL=http://localhost uv run python -
 Если нужен повторный прогон на чистом стенде, предварительно сбросить volumes:
 
 ```bash
-docker compose -f docker-compose.dev.yml down -v
-docker compose -f docker-compose.dev.yml up --build -d
+docker compose -p energy-control-system down -v
+docker compose -f docker-compose.dev.yml -p energy-control-system up --build -d
 ```
 
 ## Year Database Seed
@@ -69,7 +69,7 @@ uv run python year_demo_seed.py --rows 1000 --start-date 2025-01-01 --compose-fi
 Если стенд поднят с явным именем проекта Docker Compose:
 
 ```bash
-uv run python year_demo_seed.py --compose-file ./infrastructure/docker-compose.dev.yml --project-name energy-control-system
+uv run python year_demo_seed.py --project-name energy-control-system
 ```
 
 Скрипт детерминированный и перед вставкой удаляет свои предыдущие строки в выделенном диапазоне ID, поэтому его можно запускать повторно на том же dev-стенде.
