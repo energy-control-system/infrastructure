@@ -8,7 +8,6 @@ from tests.demo_seed_client import ApiError, poll_until
 
 MOSCOW = timezone(timedelta(hours=3))
 STACK_READY_PATHS = (
-    "/api/brigade-service/brigades",
     "/api/subscriber-service/subscribers",
     "/api/task-service/tasks",
     "/api/inspection-service/inspections",
@@ -318,7 +317,7 @@ class DemoSeedWorkflow:
             self.build_task_payload(case, obj["ID"]),
         )
         self.client.request_json(
-            "PATCH",
+            "POST",
             "/api/task-service/tasks/assign",
             {"TaskID": task["ID"], "BrigadeID": brigade_id},
         )

@@ -134,8 +134,7 @@ class DemoSeedWorkflowTests(unittest.TestCase):
 
         self.assertEqual(
             [
-                "/api/brigade-service/brigades",
-                "/api/brigade-service/brigades",
+                "/api/subscriber-service/subscribers",
                 "/api/subscriber-service/subscribers",
                 "/api/task-service/tasks",
                 "/api/inspection-service/inspections",
@@ -173,6 +172,10 @@ class DemoSeedWorkflowTests(unittest.TestCase):
         self.assertEqual(
             {"TaskID": 61, "BrigadeID": 7},
             client.calls[4][2],
+        )
+        self.assertEqual(
+            ("POST", "/api/task-service/tasks/assign"),
+            client.calls[4][:2],
         )
         finish_payload = next(payload for _, path, payload in client.calls if path == "/api/inspection-service/inspections/71/finish")
         self.assertEqual(1, finish_payload["Type"])
@@ -407,7 +410,7 @@ class _InspectionApiErrorClient(_FlowClient):
 class _StackReadyClient:
     def __init__(self) -> None:
         self.calls = []
-        self.remaining_failures = {"/api/brigade-service/brigades": 1}
+        self.remaining_failures = {"/api/subscriber-service/subscribers": 1}
 
     def request_json(self, method: str, path: str, payload=None):
         self.calls.append((method, path, payload))
@@ -423,7 +426,6 @@ class _StackReadyClient:
             )
 
         if path in {
-            "/api/brigade-service/brigades",
             "/api/subscriber-service/subscribers",
             "/api/task-service/tasks",
             "/api/inspection-service/inspections",
@@ -463,7 +465,6 @@ class _ReportRetryClient(_StackReadyClient):
             return [{"ID": 801, "Files": [{"ID": 901}]}]
 
         if path in {
-            "/api/brigade-service/brigades",
             "/api/subscriber-service/subscribers",
             "/api/task-service/tasks",
             "/api/inspection-service/inspections",
