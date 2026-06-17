@@ -352,6 +352,8 @@ services:
     build:
       context: ../file-service
       dockerfile: Dockerfile
+      secrets:
+        - github_token
     environment:
       ENV: dev
       JWT_SECRET: dev-user-service-secret
@@ -383,6 +385,8 @@ services:
     build:
       context: ../task-service
       dockerfile: Dockerfile
+      secrets:
+        - github_token
     environment:
       ENV: dev
       JWT_SECRET: dev-user-service-secret
@@ -405,6 +409,8 @@ services:
     build:
       context: ../inspection-service
       dockerfile: Dockerfile
+      secrets:
+        - github_token
     environment:
       ENV: dev
       JWT_SECRET: dev-user-service-secret
@@ -427,6 +433,8 @@ services:
     build:
       context: ../analytics-service
       dockerfile: Dockerfile
+      secrets:
+        - github_token
     environment:
       ENV: dev
       JWT_SECRET: dev-user-service-secret
@@ -453,6 +461,8 @@ services:
     build:
       context: ../brigade-service
       dockerfile: Dockerfile
+      secrets:
+        - github_token
     environment:
       ENV: dev
       JWT_SECRET: dev-user-service-secret
@@ -475,6 +485,8 @@ services:
     build:
       context: ../subscriber-service
       dockerfile: Dockerfile
+      secrets:
+        - github_token
     environment:
       ENV: dev
       JWT_SECRET: dev-user-service-secret
@@ -520,3 +532,7 @@ volumes:
   clickhouse_data:
   prometheus_data:
   grafana_data:
+
+secrets:
+  github_token:
+    environment: GITHUB_TOKEN

@@ -4,6 +4,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DRY_RUN="${DRY_RUN:-false}"
+DOCKER_BUILD_ARGS=("$@")
+
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+  DOCKER_BUILD_ARGS+=("--secret" "id=github_token,env=GITHUB_TOKEN")
+else
+  echo "GITHUB_TOKEN is required to build Go services with private github.com/sunshineOfficial/golib" >&2
+  exit 1
+fi
 
 SERVICES=(
   "file-service"
@@ -35,14 +43,14 @@ for service in "${SERVICES[@]}"; do
 
   if [[ "${DRY_RUN}" == "true" ]]; then
     printf 'docker build -t "%s" -f "%s"' "${tag}" "${dockerfile}"
-    if (($# > 0)); then
-      printf ' "%s"' "$@"
+    if ((${#DOCKER_BUILD_ARGS[@]} > 0)); then
+      printf ' "%s"' "${DOCKER_BUILD_ARGS[@]}"
     fi
     printf ' "%s"\n' "${context}"
     continue
   fi
 
-  docker build -t "${tag}" -f "${dockerfile}" "$@" "${context}"
+  docker build -t "${tag}" -f "${dockerfile}" "${DOCKER_BUILD_ARGS[@]}" "${context}"
 done
 
 echo "All microservice images were built successfully."
